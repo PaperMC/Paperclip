@@ -14,18 +14,14 @@ import org.apache.commons.io.FileUtils;
 import org.jbsdiff.InvalidHeaderException;
 import org.jbsdiff.Patch;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -37,7 +33,7 @@ public class Paperclip {
     private final static File cache = new File("cache");
     private final static File vanillaJar = new File(cache, "original.jar");
     private final static File paperJar = new File(cache, "patched.jar");
-    private final static File customPatchInfo = new File("patch.json");
+    private final static File customPatchInfo = new File("paperclip.json");
     private static MessageDigest digest;
 
     // TODO: handle these exceptions more...gracefully
@@ -84,7 +80,6 @@ public class Paperclip {
 
             System.out.println("Patching original jar...");
             final byte[] vanillaJarBytes = Files.readAllBytes(vanillaJar.toPath());
-
 
             final byte[] patch = Utils.readFully(patchInfo.getPatchFile().openStream());
 
