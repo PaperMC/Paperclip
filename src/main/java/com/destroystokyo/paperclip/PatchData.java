@@ -1,19 +1,17 @@
 package com.destroystokyo.paperclip;
 
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 public class PatchData {
     private final URL patchFile;
@@ -24,7 +22,7 @@ public class PatchData {
     public PatchData(JSONObject obj) {
         final String patch = (String) obj.get("patch");
         // First try and parse the patch as a uri
-        URL patchFile = PatchData.class.getResource("/" + patch);;
+        URL patchFile = PatchData.class.getResource("/" + patch);
         if (new File(patch).exists()) {
             try {
                 patchFile = new File(patch).toURI().toURL();
