@@ -35,88 +35,58 @@ import java.util.jar.JarInputStream;
 public class Paperclip {
 
     private final static File cache = new File("cache");
-    private final static File vanillaJar = new File(cache, "vanilla.jar");
-    private final static File paperJar = new File(cache, "paperspigot.jar");
-
-    // Custom patches, if provided
-    private final static File customPatch = new File(cache, "custom.patch");
-    private final static File customInfo = new File(cache, "custom.info");
-
-    private static boolean isCustom = customPatch.exists() && customInfo.exists();
-
+    private final static File vanillaJar = new File(cache, "original.jar");
+    private final static File paperJar = new File(cache, "patched.jar");
+    private final static File customPatchInfo = new File("patch.json");
     private static MessageDigest digest;
 
     // TODO: handle these exceptions more...gracefully
     public static void main(String[] args) throws IOException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, NoSuchAlgorithmException, CompressorException, InvalidHeaderException {
         digest = MessageDigest.getInstance("SHA-256");
 
-        if ((customInfo.exists() || customPatch.exists()) && !isCustom) {
-            System.out.println("Warning: a custom patch file was provided, but a custom info file was not. Running default instead.");
-        }
-
-        // TODO: switch to an actual data format at some point. I'm just feeling lazy atm
-        String[] customInfo = new String[] { "", "", "" }; // prevent NPE's
-        if (isCustom) {
-            customInfo = readFile(Paperclip.customInfo).split("\\n");
-            if (customInfo.length != 3) {
-                System.err.println("Warning: custom info does not contain three lines. Running default instead.");
-                isCustom = false;
+        final PatchData patchInfo;
+        try {
+            if (customPatchInfo.exists()) {
+                patchInfo = PatchData.parse(new FileInputStream(customPatchInfo));
+            } else {
+                patchInfo = PatchData.parse(Paperclip.class.getResource("/patch.json").openStream());
             }
+        } catch (IllegalArgumentException e) {
+            System.err.println("Invalid patch file");
+            e.printStackTrace();
+            System.exit(1);
+            return;
         }
 
-        final boolean vanillaValid = checkJar(vanillaJar, Data.vanillaMinecraftHash, customInfo[1]);
-        final boolean paperValid = checkJar(paperJar, Data.paperMinecraftHash, customInfo[0]);
+        final boolean vanillaValid = checkJar(vanillaJar, patchInfo.getOriginalHash());
+        final boolean paperValid = checkJar(paperJar, patchInfo.getPatchedHash());
 
         if (!paperValid) {
             if (!vanillaValid) {
-                System.out.println("Downloading vanilla jar...");
+                System.out.println("Downloading original jar...");
                 try {
                     FileUtils.forceMkdir(cache);
                     FileUtils.forceDelete(vanillaJar);
                 } catch (Exception ignored) {}
 
-                if (isCustom) {
-                    FileUtils.copyURLToFile(new URL(customInfo[2]), vanillaJar);
-                } else {
-                    FileUtils.copyURLToFile(new URL("https://s3.amazonaws.com/Minecraft.Download/versions/1.8.8/minecraft_server.1.8.8.jar"), vanillaJar);
-                }
+                FileUtils.copyURLToFile(patchInfo.getOriginalUrl(), vanillaJar);
 
                 // Only continue from here if the downloaded jar is correct
-                if (!checkJar(vanillaJar, Data.vanillaMinecraftHash, customInfo[1])) {
-                    System.err.println("Vanilla server jar could not be downloaded successfully, quitting.");
+                if (!checkJar(vanillaJar, patchInfo.getOriginalHash())) {
+                    System.err.println("Invalid original jar, quitting.");
                     System.exit(1);
                 }
             }
 
-            try {
+            if (paperJar.exists()) {
                 FileUtils.forceDelete(paperJar);
-            } catch (Exception ignored) {}
+            }
 
-            System.out.println("Patching vanilla jar...");
+            System.out.println("Patching original jar...");
             final byte[] vanillaJarBytes = Files.readAllBytes(vanillaJar.toPath());
 
-            final byte[] patch;
-            if (isCustom) {
-                // Get the patch data from the custom file the user provided
-                patch = Files.readAllBytes(customPatch.toPath());
-            } else {
-                // Get the patch data that is included in the jar
-                try (
-                        final ByteArrayOutputStream os = new ByteArrayOutputStream();
-                        final InputStream in = Paperclip.class.getClassLoader().getResourceAsStream("paperMC.patch")
-                ) {
-                    final byte[] buffer = new byte[4096];
-                    int read;
-                    for (;;) {
-                        read = in.read(buffer);
-                        if (read <= 0) {
-                            break;
-                        }
-                        os.write(buffer, 0, read);
-                    }
-                    patch = os.toByteArray();
-                }
-            }
+
+            final byte[] patch = Utils.readFully(patchInfo.getPatchFile().openStream());
 
             // Patch the jar to create the final jar to run
             try (final FileOutputStream jarOutput = new FileOutputStream(paperJar)) {
@@ -145,29 +115,11 @@ public class Paperclip {
         m.invoke(null, new Object[] {args});
     }
 
-    private static boolean checkJar(File jar, byte[] defaultHash, String customHash) throws IOException {
+    private static boolean checkJar(File jar, byte[] hash) throws IOException {
         if (jar.exists()) {
             final byte[] jarBytes = Files.readAllBytes(jar.toPath());
-
-            if (isCustom) {
-                return customHash.equalsIgnoreCase(toHex(digest.digest(jarBytes)));
-            } else {
-                return Arrays.equals(defaultHash, digest.digest(jarBytes));
-            }
+            return Arrays.equals(hash, digest.digest(jarBytes));
         }
         return false;
-    }
-
-    private static String toHex(final byte[] hash) {
-        final StringBuilder sb = new StringBuilder(hash.length * 2);
-        for (byte aHash : hash) {
-            sb.append(String.format("%02X", aHash & 0xFF));
-        }
-        return sb.toString();
-    }
-
-    private static String readFile(final File file) throws IOException {
-        final byte[] encoded = Files.readAllBytes(file.toPath());
-        return StandardCharsets.UTF_8.decode(ByteBuffer.wrap(encoded)).toString();
     }
 }

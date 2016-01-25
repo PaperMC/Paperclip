@@ -18,24 +18,36 @@
         <project.author>Kyle Wood (DemonWav)</project.author>
     </properties>
 
+    <profiles>
+        <profile>
+            <id>generate</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.destroystokyo</groupId>
+                        <artifactId>paperclip-maven-plugin</artifactId>
+                        <version>1.0-SNAPSHOT</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>generate-data</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <vanillaMinecraft>${project.basedir}/minecraft_server.1.8.8.jar</vanillaMinecraft>
+                            <paperMinecraft>${project.basedir}/paperspigot-1.8.8.jar</paperMinecraft>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
     <build>
         <plugins>
-            <plugin>
-                <groupId>com.destroystokyo</groupId>
-                <artifactId>paperclip-maven-plugin</artifactId>
-                <version>1.0-SNAPSHOT</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>generate-data</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <vanillaMinecraft>${project.basedir}/minecraft_server.1.8.8.jar</vanillaMinecraft>
-                    <paperMinecraft>${project.basedir}/paperspigot-1.8.8.jar</paperMinecraft>
-                </configuration>
-            </plugin>
             <plugin>
                 <version>3.1</version>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -106,6 +118,11 @@
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.4</version>
+        </dependency>
+        <dependency>
+            <groupId>com.googlecode.json-simple</groupId>
+            <artifactId>json-simple</artifactId>
+            <version>1.1.1</version>
         </dependency>
     </dependencies>
 </project>
