@@ -42,7 +42,9 @@ public class Paperclip {
         try {
             digest = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
+            System.err.println("Could not create hashing instance");
             e.printStackTrace();
+            System.exit(1);
         }
 
         final PatchData patchInfo;
