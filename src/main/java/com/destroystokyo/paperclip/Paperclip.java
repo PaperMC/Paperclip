@@ -16,10 +16,12 @@ import org.jbsdiff.Patch;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -36,9 +38,12 @@ public class Paperclip {
     private final static File customPatchInfo = new File("paperclip.json");
     private static MessageDigest digest;
 
-    // TODO: handle these exceptions more...gracefully
-    public static void main(String[] args) throws IOException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, NoSuchAlgorithmException, CompressorException, InvalidHeaderException {
-        digest = MessageDigest.getInstance("SHA-256");
+    public static void main(String[] args) {
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
 
         final PatchData patchInfo;
         try {
@@ -52,10 +57,24 @@ public class Paperclip {
             e.printStackTrace();
             System.exit(1);
             return;
+        } catch (IOException e) {
+            System.err.println("Error reading patch file");
+            e.printStackTrace();
+            System.exit(1);
+            return;
         }
 
-        final boolean vanillaValid = checkJar(vanillaJar, patchInfo.getOriginalHash());
-        final boolean paperValid = checkJar(paperJar, patchInfo.getPatchedHash());
+        final boolean vanillaValid;
+        final boolean paperValid;
+        try {
+            vanillaValid = checkJar(vanillaJar, patchInfo.getOriginalHash());
+            paperValid = checkJar(paperJar, patchInfo.getPatchedHash());
+        } catch (IOException e) {
+            System.err.println("Error reading jar");
+            e.printStackTrace();
+            System.exit(1);
+            return;
+        }
 
         if (!paperValid) {
             if (!vanillaValid) {
@@ -65,27 +84,57 @@ public class Paperclip {
                     FileUtils.forceDelete(vanillaJar);
                 } catch (Exception ignored) {}
 
-                FileUtils.copyURLToFile(patchInfo.getOriginalUrl(), vanillaJar);
+                try {
+                    FileUtils.copyURLToFile(patchInfo.getOriginalUrl(), vanillaJar);
+                } catch (IOException e) {
+                    System.err.println("Error downloading original jar");
+                    e.printStackTrace();
+                    System.exit(1);
+                }
 
                 // Only continue from here if the downloaded jar is correct
-                if (!checkJar(vanillaJar, patchInfo.getOriginalHash())) {
-                    System.err.println("Invalid original jar, quitting.");
+                try {
+                    if (!checkJar(vanillaJar, patchInfo.getOriginalHash())) {
+                        System.err.println("Invalid original jar, quitting.");
+                        System.exit(1);
+                    }
+                } catch (IOException e) {
+                    System.err.println("Error reading jar");
+                    e.printStackTrace();
                     System.exit(1);
                 }
             }
 
             if (paperJar.exists()) {
-                FileUtils.forceDelete(paperJar);
+                try {
+                    FileUtils.forceDelete(paperJar);
+                } catch (IOException e) {
+                    System.err.println("Error deleting invalid jar");
+                    e.printStackTrace();
+                    System.exit(1);
+                }
             }
 
             System.out.println("Patching original jar...");
-            final byte[] vanillaJarBytes = Files.readAllBytes(vanillaJar.toPath());
-
-            final byte[] patch = Utils.readFully(patchInfo.getPatchFile().openStream());
+            final byte[] vanillaJarBytes;
+            final byte[] patch;
+            try {
+                vanillaJarBytes = Files.readAllBytes(vanillaJar.toPath());
+                patch = Utils.readFully(patchInfo.getPatchFile().openStream());
+            } catch (IOException e) {
+                System.err.println("Error patching original jar");
+                e.printStackTrace();
+                System.exit(1);
+                return;
+            }
 
             // Patch the jar to create the final jar to run
             try (final FileOutputStream jarOutput = new FileOutputStream(paperJar)) {
                 Patch.patch(vanillaJarBytes, patch, jarOutput);
+            } catch (IOException | InvalidHeaderException | CompressorException e) {
+                System.err.println("Error patching origin jar");
+                e.printStackTrace();
+                System.exit(1);
             }
         }
 
@@ -96,18 +145,39 @@ public class Paperclip {
                 final JarInputStream js = new JarInputStream(fs)
         ) {
             main = js.getManifest().getMainAttributes().getValue("Main-Class");
+        } catch (IOException e) {
+            System.err.println("Error reading from patched jar");
+            e.printStackTrace();
+            System.exit(1);
+            return;
         }
 
         // Run the jar
-        final URL url = paperJar.toURI().toURL();
+        final URL url;
+        try {
+            url = paperJar.toURI().toURL();
+        } catch (MalformedURLException e) {
+            System.err.println("Error reading path to patched jar");
+            e.printStackTrace();
+            System.exit(1);
+            return;
+        }
         final URLClassLoader loader = new URLClassLoader(new URL[] {url}, Paperclip.class.getClassLoader());
-        final Class<?> cls = Class.forName(main, true, loader);
-        final Method m = cls.getMethod("main", String[].class);
+        final Class<?> cls;
+        final Method m;
+        try {
+            cls = Class.forName(main, true, loader);
+            m = cls.getMethod("main", String[].class);
 
-        // commons-logging requires this because it isn't well-behaved >.>
-        Thread.currentThread().setContextClassLoader(loader);
+            // commons-logging requires this because it isn't well-behaved >.>
+            Thread.currentThread().setContextClassLoader(loader);
 
-        m.invoke(null, new Object[] {args});
+            m.invoke(null, new Object[] {args});
+        } catch (ClassNotFoundException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            System.err.println("Error running patched jar");
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
 
     private static boolean checkJar(File jar, byte[] hash) throws IOException {
