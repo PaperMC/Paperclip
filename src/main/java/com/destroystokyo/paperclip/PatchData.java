@@ -18,6 +18,7 @@ public class PatchData {
     private final URL originalUrl;
     private final byte[] originalHash;
     private final byte[] patchedHash;
+    private final String version;
 
     public PatchData(JSONObject obj) {
         final String patch = (String) obj.get("patch");
@@ -39,6 +40,7 @@ public class PatchData {
         }
         this.originalHash = Utils.fromHex((String) obj.get("originalHash"));
         this.patchedHash = Utils.fromHex((String) obj.get("patchedHash"));
+        this.version = ((String) obj.get("version"));
     }
 
     public URL getPatchFile() {
@@ -55,6 +57,10 @@ public class PatchData {
 
     public byte[] getPatchedHash() {
         return patchedHash;
+    }
+
+    public String getVersion() {
+        return version;
     }
 
     public static PatchData parse(InputStream in) throws IOException {

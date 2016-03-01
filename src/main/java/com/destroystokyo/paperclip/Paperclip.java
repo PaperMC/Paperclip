@@ -16,7 +16,6 @@ import org.jbsdiff.Patch;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -33,8 +32,6 @@ import java.util.jar.JarInputStream;
 public class Paperclip {
 
     private final static File cache = new File("cache");
-    private final static File vanillaJar = new File(cache, "original.jar");
-    private final static File paperJar = new File(cache, "patched.jar");
     private final static File customPatchInfo = new File("paperclip.json");
     private static MessageDigest digest;
 
@@ -65,6 +62,9 @@ public class Paperclip {
             System.exit(1);
             return;
         }
+
+        final File vanillaJar = new File(cache, "mojang_" + patchInfo.getVersion() + ".jar");
+        final File paperJar = new File(cache, "patched_" + patchInfo.getVersion() + ".jar");
 
         final boolean vanillaValid;
         final boolean paperValid;
