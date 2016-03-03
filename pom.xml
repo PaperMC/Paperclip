@@ -38,9 +38,9 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <mcVersion>1.8.8</mcVersion>
-                            <vanillaMinecraft>${project.basedir}/minecraft_server.1.8.8.jar</vanillaMinecraft>
-                            <paperMinecraft>${project.basedir}/paperspigot-1.8.8.jar</paperMinecraft>
+                            <mcVersion>1.9</mcVersion>
+                            <vanillaMinecraft>${project.basedir}/minecraft_server.1.9.jar</vanillaMinecraft>
+                            <paperMinecraft>${project.basedir}/paper-1.9.jar</paperMinecraft>
                         </configuration>
                     </plugin>
                 </plugins>
