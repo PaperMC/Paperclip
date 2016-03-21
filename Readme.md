@@ -21,8 +21,3 @@ Either name them according to the settings in the pom.xml, or modify it to match
 To create the launcher for this build, run this command:
 
 `mvn clean package`
-
-Extra
------
-
-There is also a [bash script](https://gist.github.com/Techcable/0b491b70347fd46a9e3f) by Techcable for those who don't want to use the Maven plugin.
