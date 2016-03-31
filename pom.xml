@@ -16,6 +16,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.author>Kyle Wood (DemonWav)</project.author>
+        <project.mcver>1.9.2</project.mcver>
     </properties>
 
     <profiles>
