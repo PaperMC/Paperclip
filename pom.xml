@@ -40,8 +40,8 @@
                         </executions>
                         <configuration>
                             <mcVersion>${mcver}</mcVersion>
-                            <vanillaMinecraft>${project.basedir}/minecraft_server.${mcver}.jar</vanillaMinecraft>
-                            <paperMinecraft>${project.basedir}/paper-${mcver}.jar</paperMinecraft>
+                            <vanillaMinecraft>${vanillajar}</vanillaMinecraft>
+                            <paperMinecraft>${paperjar}</paperMinecraft>
                         </configuration>
                     </plugin>
                 </plugins>
@@ -49,6 +49,7 @@
         </profile>
     </profiles>
     <build>
+	<finalName>paperclip-${mcver}</finalName>
         <plugins>
             <plugin>
                 <version>3.1</version>
