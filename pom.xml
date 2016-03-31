@@ -49,7 +49,7 @@
         </profile>
     </profiles>
     <build>
-	<finalName>paperclip-${mcver}</finalName>
+        <finalName>paperclip-${mcver}</finalName>
         <plugins>
             <plugin>
                 <version>3.1</version>
@@ -59,6 +59,24 @@
                     <source>1.8</source>
                     <target>1.8</target>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>properties-maven-plugin</artifactId>
+                <version>1.0-alpha-2</version>
+                <executions>
+                    <execution>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>read-project-properties</goal>
+                        </goals>
+                        <configuration>
+                            <files>
+                                <file>../paperclip.properties</file>
+                            </files>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
