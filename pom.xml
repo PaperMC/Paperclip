@@ -11,12 +11,11 @@
 
     <name>Paperclip</name>
     <description>Launcher for the Paper Minecraft server</description>
-    <url>https://github.com/PaperSpigot/Paperclip</url>
+    <url>https://github.com/PaperMC/Paperclip</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.author>Kyle Wood (DemonWav)</project.author>
-        <project.mcver>1.9.2</project.mcver>
     </properties>
 
     <profiles>
