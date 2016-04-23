@@ -9,17 +9,14 @@
 
 package com.destroystokyo.paperclip;
 
-import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.jbsdiff.InvalidHeaderException;
 import org.jbsdiff.Patch;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -135,15 +132,7 @@ public class Paperclip {
             try {
                 jarOutput = new FileOutputStream(paperJar);
                 Patch.patch(vanillaJarBytes, patch, jarOutput);
-            } catch (IOException e) {
-                System.err.println("Error patching origin jar");
-                e.printStackTrace();
-                System.exit(1);
-            } catch (InvalidHeaderException e) {
-                System.err.println("Error patching origin jar");
-                e.printStackTrace();
-                System.exit(1);
-            } catch (CompressorException e) {
+            } catch (Exception e) {
                 System.err.println("Error patching origin jar");
                 e.printStackTrace();
                 System.exit(1);
@@ -209,19 +198,7 @@ public class Paperclip {
             Thread.currentThread().setContextClassLoader(loader);
 
             m.invoke(null, new Object[] {args});
-        } catch (ClassNotFoundException e) {
-            System.err.println("Error running patched jar");
-            e.printStackTrace();
-            System.exit(1);
-        } catch (NoSuchMethodException e) {
-            System.err.println("Error running patched jar");
-            e.printStackTrace();
-            System.exit(1);
-        } catch (InvocationTargetException e) {
-            System.err.println("Error running patched jar");
-            e.printStackTrace();
-            System.exit(1);
-        } catch (IllegalAccessException e) {
+        } catch (Exception e) {
             System.err.println("Error running patched jar");
             e.printStackTrace();
             System.exit(1);

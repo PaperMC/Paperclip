@@ -12,7 +12,6 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 
 public class PatchData {
     private final URL patchFile;
@@ -68,9 +67,7 @@ public class PatchData {
         try {
             Object obj = new JSONParser().parse(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))));
             return new PatchData((JSONObject) obj);
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("Invalid json", e);
-        } catch (ClassCastException e) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("Invalid json", e);
         }
     }
