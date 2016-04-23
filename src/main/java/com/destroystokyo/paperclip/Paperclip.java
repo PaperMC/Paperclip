@@ -33,6 +33,14 @@ public class Paperclip {
     private static MessageDigest digest;
 
     public static void main(String[] args) {
+        final double version = Double.parseDouble(System.getProperty("java.specification.version"));
+        if (version < 1.8) {
+            // get mad at them
+            System.err.println("Paper requires Java 8, please upgrade to it.");
+            System.err.println("http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html");
+            System.exit(1);
+        }
+
         try {
             digest = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
