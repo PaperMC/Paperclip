@@ -1,3 +1,12 @@
+/*
+ * Paperclip - Paper Minecraft launcher
+ *
+ * Copyright (c) 2016 Kyle Wood (DemonWav)
+ * https://github.com/PaperSpigot/Paper
+ *
+ * MIT License
+ */
+
 package com.destroystokyo.paperclip;
 
 import org.json.simple.JSONObject;
@@ -5,13 +14,15 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class PatchData {
     private final URL patchFile;
@@ -22,11 +33,12 @@ public class PatchData {
 
     public PatchData(JSONObject obj) {
         final String patch = (String) obj.get("patch");
+        Path patchPath = Paths.get(patch);
         // First try and parse the patch as a uri
         URL patchFile = PatchData.class.getResource("/" + patch);
-        if (new File(patch).exists()) {
+        if (Files.exists(patchPath)) {
             try {
-                patchFile = new File(patch).toURI().toURL();
+                patchFile = patchPath.toUri().toURL();
             } catch (MalformedURLException ignored) {}
         }
         if (patchFile == null) {
@@ -40,7 +52,7 @@ public class PatchData {
         }
         this.originalHash = Utils.fromHex((String) obj.get("originalHash"));
         this.patchedHash = Utils.fromHex((String) obj.get("patchedHash"));
-        this.version = ((String) obj.get("version"));
+        this.version = (String) obj.get("version");
     }
 
     public URL getPatchFile() {
@@ -64,10 +76,10 @@ public class PatchData {
     }
 
     public static PatchData parse(InputStream in) throws IOException {
-        try {
-            Object obj = new JSONParser().parse(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))));
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8")))) {
+            Object obj = new JSONParser().parse(reader);
             return new PatchData((JSONObject) obj);
-        } catch (Exception e) {
+        } catch (ParseException e) {
             throw new IllegalArgumentException("Invalid json", e);
         }
     }
