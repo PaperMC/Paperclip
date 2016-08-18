@@ -9,18 +9,19 @@
 
 package com.destroystokyo.paperclip;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.jbsdiff.Patch;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -28,8 +29,8 @@ import java.util.jar.JarInputStream;
 
 public class Paperclip {
 
-    private final static File cache = new File("cache");
-    private final static File customPatchInfo = new File("paperclip.json");
+    private final static Path cache = Paths.get("cache");
+    private final static Path customPatchInfo = Paths.get("paperclip.json");
     private static MessageDigest digest;
 
     public static void main(String[] args) {
@@ -51,8 +52,8 @@ public class Paperclip {
 
         final PatchData patchInfo;
         try {
-            if (customPatchInfo.exists()) {
-                patchInfo = PatchData.parse(new FileInputStream(customPatchInfo));
+            if (Files.exists(customPatchInfo)) {
+                patchInfo = PatchData.parse(Files.newInputStream(customPatchInfo));
             } else {
                 patchInfo = PatchData.parse(Paperclip.class.getResource("/patch.json").openStream());
             }
@@ -68,8 +69,8 @@ public class Paperclip {
             return;
         }
 
-        final File vanillaJar = new File(cache, "mojang_" + patchInfo.getVersion() + ".jar");
-        final File paperJar = new File(cache, "patched_" + patchInfo.getVersion() + ".jar");
+        final Path vanillaJar = cache.resolve("mojang_" + patchInfo.getVersion() + ".jar");
+        final Path paperJar = cache.resolve("patched_" + patchInfo.getVersion() + ".jar");
 
         final boolean vanillaValid;
         final boolean paperValid;
@@ -87,12 +88,11 @@ public class Paperclip {
             if (!vanillaValid) {
                 System.out.println("Downloading original jar...");
                 try {
-                    FileUtils.forceMkdir(cache);
-                    FileUtils.forceDelete(vanillaJar);
+                    Files.createDirectory(cache);
                 } catch (Exception ignored) {}
 
                 try {
-                    FileUtils.copyURLToFile(patchInfo.getOriginalUrl(), vanillaJar);
+                    Files.copy(patchInfo.getOriginalUrl().openStream(), vanillaJar, StandardCopyOption.REPLACE_EXISTING);
                 } catch (IOException e) {
                     System.err.println("Error downloading original jar");
                     e.printStackTrace();
@@ -112,9 +112,9 @@ public class Paperclip {
                 }
             }
 
-            if (paperJar.exists()) {
+            if (Files.exists(paperJar)) {
                 try {
-                    FileUtils.forceDelete(paperJar);
+                    Files.delete(paperJar);
                 } catch (IOException e) {
                     System.err.println("Error deleting invalid jar");
                     e.printStackTrace();
@@ -126,8 +126,8 @@ public class Paperclip {
             final byte[] vanillaJarBytes;
             final byte[] patch;
             try {
-                vanillaJarBytes = IOUtils.toByteArray(vanillaJar.toURI());
-                patch = Utils.readFully(patchInfo.getPatchFile().openStream());
+                vanillaJarBytes = Files.readAllBytes(vanillaJar);
+                patch = IOUtils.toByteArray(patchInfo.getPatchFile().openStream());
             } catch (IOException e) {
                 System.err.println("Error patching original jar");
                 e.printStackTrace();
@@ -136,59 +136,30 @@ public class Paperclip {
             }
 
             // Patch the jar to create the final jar to run
-            FileOutputStream jarOutput = null;
-            try {
-                jarOutput = new FileOutputStream(paperJar);
-                Patch.patch(vanillaJarBytes, patch, jarOutput);
+            try (OutputStream output = Files.newOutputStream(paperJar)) {
+                Patch.patch(vanillaJarBytes, patch, output);
             } catch (Exception e) {
                 System.err.println("Error patching origin jar");
                 e.printStackTrace();
                 System.exit(1);
-            } finally {
-                if (jarOutput != null) {
-                    try {
-                        jarOutput.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
             }
         }
 
         // Get main class info from jar
         final String main;
-        FileInputStream fs = null;
-        JarInputStream js = null;
-        try {
-            fs = new FileInputStream(paperJar);
-            js = new JarInputStream(fs);
-            main = js.getManifest().getMainAttributes().getValue("Main-Class");
+        try (JarInputStream inputStream = new JarInputStream(Files.newInputStream(paperJar))) {
+            main = inputStream.getManifest().getMainAttributes().getValue("Main-Class");
         } catch (IOException e) {
             System.err.println("Error reading from patched jar");
             e.printStackTrace();
             System.exit(1);
             return;
-        } finally {
-            if (fs != null) {
-                try {
-                    fs.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            if (js != null) {
-                try {
-                    js.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
         }
 
         // Run the jar
         final URL url;
         try {
-            url = paperJar.toURI().toURL();
+            url = paperJar.toUri().toURL();
         } catch (MalformedURLException e) {
             System.err.println("Error reading path to patched jar");
             e.printStackTrace();
@@ -213,9 +184,9 @@ public class Paperclip {
         }
     }
 
-    private static boolean checkJar(File jar, byte[] hash) throws IOException {
-        if (jar.exists()) {
-            final byte[] jarBytes = IOUtils.toByteArray(jar.toURI());
+    private static boolean checkJar(Path jar, byte[] hash) throws IOException {
+        if (Files.exists(jar)) {
+            final byte[] jarBytes = Files.readAllBytes(jar);
             return Arrays.equals(hash, digest.digest(jarBytes));
         }
         return false;

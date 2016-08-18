@@ -1,12 +1,15 @@
+/*
+ * Paperclip - Paper Minecraft launcher
+ *
+ * Copyright (c) 2016 Kyle Wood (DemonWav)
+ * https://github.com/PaperSpigot/Paper
+ *
+ * MIT License
+ */
+
 package com.destroystokyo.paperclip;
 
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.output.ByteArrayOutputStream;
-
-import java.io.IOException;
-import java.io.InputStream;
-
-public class Utils {
+public final class Utils {
 
     public static byte[] fromHex(String s) {
         if (s.length() % 2 != 0) {
@@ -20,12 +23,6 @@ public class Utils {
             bytes[i] = b;
         }
         return bytes;
-    }
-
-    public static byte[] readFully(InputStream in) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        IOUtils.copy(in, out);
-        return out.toByteArray();
     }
 
     private static int getValue(char c) {
