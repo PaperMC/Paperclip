@@ -9,15 +9,9 @@
 
 package com.destroystokyo.paperclip;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.channels.Channel;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
-import java.util.ArrayList;
+import java.util.Arrays;
 
 class Utils {
 
@@ -37,19 +31,18 @@ class Utils {
 
     static byte[] readFully(InputStream in) throws IOException {
         try {
-            final ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            final ReadableByteChannel readChannel = Channels.newChannel(in);
-            final WritableByteChannel writeChannel = Channels.newChannel(stream);
-
-            final ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
-
-            while (readChannel.read(buffer) >= 0 || buffer.position() > 0) {
-                buffer.flip();
-                writeChannel.write(buffer);
-                buffer.compact();
+            // In a test this was 12 ms quicker than a ByteBuffer
+            // and for some reason that matters here.
+            byte[] buffer = new byte[16 * 1024];
+            int off = 0;
+            int read;
+            while ((read = in.read(buffer, off, buffer.length - off)) != -1) {
+                off += read;
+                if (off == buffer.length) {
+                    buffer = Arrays.copyOf(buffer, buffer.length * 2);
+                }
             }
-
-            return stream.toByteArray();
+            return Arrays.copyOfRange(buffer, 0, off);
         } finally {
             in.close();
         }

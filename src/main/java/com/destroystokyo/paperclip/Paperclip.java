@@ -144,7 +144,6 @@ public class Paperclip {
             final byte[] vanillaJarBytes;
             final byte[] patch;
             try {
-
                 vanillaJarBytes = getBytes(vanillaJar);
                 patch = Utils.readFully(patchInfo.getPatchFile().openStream());
             } catch (IOException e) {
