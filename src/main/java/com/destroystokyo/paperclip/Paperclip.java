@@ -215,11 +215,11 @@ public class Paperclip {
             return;
         }
 
-        if (!(ClassLoader.getSystemClassLoader() instanceof URLClassLoader)) {
+        if (!(Paperclip.class.getClassLoader() instanceof URLClassLoader)) {
             System.err.println("SystemClassLoader not URLClassLoader");
             System.exit(1);
         }
-        final URLClassLoader loader = (URLClassLoader) ClassLoader.getSystemClassLoader();
+        final URLClassLoader loader = (URLClassLoader) Paperclip.class.getClassLoader();
 
         // Add the url to the current system classloader
         final Method addUrl;
@@ -233,14 +233,9 @@ public class Paperclip {
             System.exit(1);
         }
 
-        final Class<?> cls;
-        final Method m;
         try {
-            cls = Class.forName(main, true, loader);
-            m = cls.getMethod("main", String[].class);
-
-            // commons-logging requires this because it isn't well-behaved >.>
-            Thread.currentThread().setContextClassLoader(loader);
+            final Class<?> cls = Class.forName(main, true, loader);
+            final Method m = cls.getMethod("main", String[].class);
 
             m.invoke(null, new Object[] {args});
         } catch (Exception e) {

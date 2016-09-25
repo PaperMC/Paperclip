@@ -9,8 +9,14 @@
 
 package com.destroystokyo.paperclip;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channel;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 
 class Utils {
@@ -31,34 +37,19 @@ class Utils {
 
     static byte[] readFully(InputStream in) throws IOException {
         try {
-            // We don't know the final size, and we will only ever iterate over this list
-            final ArrayList<Byte> bytes = new ArrayList<Byte>();
-            // 16kb sounds about right, idk
-            final int SIZE = 16 * 1024;
-            byte[] b = new byte[SIZE];
+            final ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            final ReadableByteChannel readChannel = Channels.newChannel(in);
+            final WritableByteChannel writeChannel = Channels.newChannel(stream);
 
-            int read = in.read(b);
-            while (read == SIZE) {
-                for (byte a : b) {
-                    bytes.add(a);
-                }
-                read = in.read(b);
+            final ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
+
+            while (readChannel.read(buffer) >= 0 || buffer.position() > 0) {
+                buffer.flip();
+                writeChannel.write(buffer);
+                buffer.compact();
             }
 
-            // Finish copying the final bytes in, if there are any left
-            if (read != -1) {
-                for (int i = 0; i < read; i++) {
-                    bytes.add(b[i]);
-                }
-            }
-
-
-            final byte[] finalArray = new byte[bytes.size()];
-            for (int i = 0; i < finalArray.length; i++) {
-                finalArray[i] = bytes.get(i);
-            }
-
-            return finalArray;
+            return stream.toByteArray();
         } finally {
             in.close();
         }
