@@ -106,7 +106,7 @@
     <pluginRepositories>
         <pluginRepository>
             <id>demonwav-repo</id>
-            <url>https://nexus.demonwav.com/content/repositories/snapshots/</url>
+            <url>https://nexus.demonwav.com/repository/snapshots/</url>
         </pluginRepository>
     </pluginRepositories>
 
