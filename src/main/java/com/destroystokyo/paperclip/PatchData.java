@@ -1,17 +1,13 @@
 /*
  * Paperclip - Paper Minecraft launcher
  *
- * Copyright (c) 2016 Kyle Wood (DemonWav)
+ * Copyright (c) 2017 Kyle Wood (DemonWav)
  * https://github.com/PaperMC/Paper
  *
  * MIT License
  */
 
 package com.destroystokyo.paperclip;
-
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -21,6 +17,8 @@ import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 
 class PatchData {
     private final URL patchFile;

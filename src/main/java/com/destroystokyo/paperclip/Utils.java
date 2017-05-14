@@ -1,7 +1,7 @@
 /*
  * Paperclip - Paper Minecraft launcher
  *
- * Copyright (c) 2016 Kyle Wood (DemonWav)
+ * Copyright (c) 2017 Kyle Wood (DemonWav)
  * https://github.com/PaperMC/Paper
  *
  * MIT License

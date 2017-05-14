@@ -1,15 +1,13 @@
 /*
  * Paperclip - Paper Minecraft launcher
  *
- * Copyright (c) 2016 Kyle Wood (DemonWav)
+ * Copyright (c) 2017 Kyle Wood (DemonWav)
  * https://github.com/PaperMC/Paper
  *
  * MIT License
  */
 
 package com.destroystokyo.paperclip;
-
-import org.jbsdiff.Patch;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -26,7 +24,31 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.jar.JarInputStream;
+import org.jbsdiff.Patch;
 
+// 🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮
+// 🌮          _____                    _____                    _____                   _______                   _____               🌮
+// 🌮         /\    \                  /\    \                  /\    \                 /::\    \                 /\    \              🌮
+// 🌮        /::\    \                /::\    \                /::\    \               /::::\    \               /::\    \             🌮
+// 🌮        \:::\    \              /::::\    \              /::::\    \             /::::::\    \             /::::\    \            🌮
+// 🌮         \:::\    \            /::::::\    \            /::::::\    \           /::::::::\    \           /::::::\    \           🌮
+// 🌮          \:::\    \          /:::/\:::\    \          /:::/\:::\    \         /:::/~~\:::\    \         /:::/\:::\    \          🌮
+// 🌮           \:::\    \        /:::/__\:::\    \        /:::/  \:::\    \       /:::/    \:::\    \       /:::/__\:::\    \         🌮
+// 🌮           /::::\    \      /::::\   \:::\    \      /:::/    \:::\    \     /:::/    / \:::\    \      \:::\   \:::\    \        🌮
+// 🌮          /::::::\    \    /::::::\   \:::\    \    /:::/    / \:::\    \   /:::/____/   \:::\____\   ___\:::\   \:::\    \       🌮
+// 🌮         /:::/\:::\    \  /:::/\:::\   \:::\    \  /:::/    /   \:::\    \ |:::|    |     |:::|    | /\   \:::\   \:::\    \      🌮
+// 🌮        /:::/  \:::\____\/:::/  \:::\   \:::\____\/:::/____/     \:::\____\|:::|____|     |:::|    |/::\   \:::\   \:::\____\     🌮
+// 🌮       /:::/    \::/    /\::/    \:::\  /:::/    /\:::\    \      \::/    / \:::\    \   /:::/    / \:::\   \:::\   \::/    /     🌮
+// 🌮      /:::/    / \/____/  \/____/ \:::\/:::/    /  \:::\    \      \/____/   \:::\    \ /:::/    /   \:::\   \:::\   \/____/      🌮
+// 🌮     /:::/    /                    \::::::/    /    \:::\    \                \:::\    /:::/    /     \:::\   \:::\    \          🌮
+// 🌮    /:::/    /                      \::::/    /      \:::\    \                \:::\__/:::/    /       \:::\   \:::\____\         🌮
+// 🌮    \::/    /                       /:::/    /        \:::\    \                \::::::::/    /         \:::\  /:::/    /         🌮
+// 🌮     \/____/                       /:::/    /          \:::\    \                \::::::/    /           \:::\/:::/    /          🌮
+// 🌮                                  /:::/    /            \:::\    \                \::::/    /             \::::::/    /           🌮
+// 🌮                                 /:::/    /              \:::\____\                \::/____/               \::::/    /            🌮
+// 🌮                                 \::/    /                \::/    /                                         \::/    /             🌮
+// 🌮                                  \/____/                  \/____/                                           \/____/              🌮
+// 🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮🌮
 public class Paperclip {
 
     private final static File cache = new File("cache");
@@ -51,12 +73,14 @@ public class Paperclip {
         }
 
         final PatchData patchInfo;
+        InputStream is = null;
         try {
             if (customPatchInfo.exists()) {
-                patchInfo = PatchData.parse(new FileInputStream(customPatchInfo));
+                is = new FileInputStream(customPatchInfo);
             } else {
-                patchInfo = PatchData.parse(Paperclip.class.getResource("/patch.json").openStream());
+                is = Paperclip.class.getResource("/patch.json").openStream();
             }
+            patchInfo = PatchData.parse(is);
         } catch (IllegalArgumentException e) {
             System.err.println("Invalid patch file");
             e.printStackTrace();
@@ -67,6 +91,14 @@ public class Paperclip {
             e.printStackTrace();
             System.exit(1);
             return;
+        } finally {
+            try {
+                if (is != null) {
+                    is.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         final File vanillaJar = new File(cache, "mojang_" + patchInfo.getVersion() + ".jar");
