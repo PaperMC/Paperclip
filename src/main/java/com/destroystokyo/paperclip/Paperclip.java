@@ -173,6 +173,11 @@ public class Paperclip {
             }
         }
 
+        // Exit if user supplied `--patchOnly` argument
+        if (Arrays.asList(args).contains("--patchOnly")) {
+            System.exit(0);
+        }
+
         // Get main class info from jar
         final String main;
         FileInputStream fs = null;
