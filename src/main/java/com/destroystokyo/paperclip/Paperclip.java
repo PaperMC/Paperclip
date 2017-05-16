@@ -205,6 +205,11 @@ public class Paperclip {
             }
         }
 
+        // Exit if user has set `paperclip.patchonly` system property to `true`
+        if (Boolean.getBoolean("paperclip.patchonly")) {
+            System.exit(0);
+        }
+
         // Get main class info from jar
         final String main;
         FileInputStream fs = null;
