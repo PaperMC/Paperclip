@@ -121,3 +121,4 @@ nbactions.xml
 nb-configuration.xml
 .nb-gradle/
 
+*.DS_Store

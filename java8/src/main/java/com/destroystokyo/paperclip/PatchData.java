@@ -27,7 +27,7 @@ class PatchData {
     private final byte[] patchedHash;
     private final String version;
 
-    private PatchData(JSONObject obj) {
+    private PatchData(final JSONObject obj) {
         final String patch = (String) obj.get("patch");
         // First try and parse the patch as a uri
         URL patchFile = PatchData.class.getResource("/" + patch);
@@ -42,7 +42,7 @@ class PatchData {
         this.patchFile = patchFile;
         try {
             this.originalUrl = new URL((String) obj.get("sourceUrl"));
-        } catch (MalformedURLException e) {
+        } catch (final MalformedURLException e) {
             throw new IllegalArgumentException("Invalid URL", e);
         }
         this.originalHash = Utils.fromHex((String) obj.get("originalHash"));
@@ -70,11 +70,11 @@ class PatchData {
         return version;
     }
 
-    static PatchData parse(InputStream in) throws IOException {
+    static PatchData parse(final InputStream in) throws IOException {
         try {
-            Object obj = new JSONParser().parse(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))));
+            final Object obj = new JSONParser().parse(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))));
             return new PatchData((JSONObject) obj);
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new IllegalArgumentException("Invalid json", e);
         }
     }

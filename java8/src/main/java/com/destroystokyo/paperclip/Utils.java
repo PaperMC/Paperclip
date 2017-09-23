@@ -11,25 +11,27 @@ package com.destroystokyo.paperclip;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 
 class Utils {
 
-    static byte[] fromHex(String s) {
+    static byte[] fromHex(final String s) {
         if (s.length() % 2 != 0) {
             throw new IllegalArgumentException("Hex " + s + " must be divisible by two");
         }
-        byte[] bytes = new byte[s.length() / 2];
+        final byte[] bytes = new byte[s.length() / 2];
         for (int i = 0; i < bytes.length; i++) {
-            char left = s.charAt(i * 2);
-            char right = s.charAt(i * 2 + 1);
-            byte b = (byte) ((getValue(left) << 4) | (getValue(right) & 0xF));
+            final char left = s.charAt(i * 2);
+            final char right = s.charAt(i * 2 + 1);
+            final byte b = (byte) ((getValue(left) << 4) | (getValue(right) & 0xF));
             bytes[i] = b;
         }
         return bytes;
     }
 
-    static byte[] readFully(InputStream in) throws IOException {
+    static byte[] readFully(final InputStream in) throws IOException {
         try {
             // In a test this was 12 ms quicker than a ByteBuffer
             // and for some reason that matters here.
@@ -48,7 +50,20 @@ class Utils {
         }
     }
 
-    private static int getValue(char c) {
+    static void invoke(final String mainClass, final ClassLoader loader, final String[] args) {
+        try {
+            final Class<?> cls = Class.forName(mainClass, true, loader);
+            final Method m = cls.getMethod("main", String[].class);
+
+            m.invoke(null, new Object[] {args});
+        } catch (final NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+            System.err.println("Error running patched jar");
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
+    private static int getValue(final char c) {
         int i = Character.digit(c, 16);
         if (i < 0) {
             throw new IllegalArgumentException("Invalid hex char: " + c);
