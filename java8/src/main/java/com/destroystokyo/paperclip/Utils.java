@@ -50,9 +50,9 @@ class Utils {
         }
     }
 
-    static void invoke(final String mainClass, final ClassLoader loader, final String[] args) {
+    static void invoke(final String mainClass, final String[] args) {
         try {
-            final Class<?> cls = Class.forName(mainClass, true, loader);
+            final Class<?> cls = Class.forName(mainClass, true, ClassLoader.getSystemClassLoader());
             final Method m = cls.getMethod("main", String[].class);
 
             m.invoke(null, new Object[] {args});

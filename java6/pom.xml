@@ -16,12 +16,14 @@
     <build>
         <plugins>
             <plugin>
-                <version>3.1</version>
+                <version>3.6.1</version>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <fork>true</fork>
+                    <source>6</source>
+                    <target>6</target>
+                    <release>6</release>
                 </configuration>
             </plugin>
         </plugins>

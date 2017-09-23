@@ -14,8 +14,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.security.MessageDigest;
@@ -150,18 +148,8 @@ class Paperclip {
             return;
         }
 
-        final URL url;
-        try {
-            url = paperJar.toURI().toURL();
-        } catch (final MalformedURLException e) {
-            System.err.println("Error reading path to patched jar");
-            e.printStackTrace();
-            System.exit(1);
-            return;
-        }
-
         // Run the jar
-        JarRunnerProvider.getJarRunner().runJar(url, main, args);
+        Utils.invoke(main, args);
     }
 
     private static InputStream getConfig() throws IOException {
