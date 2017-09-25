@@ -51,6 +51,7 @@ class Utils {
     }
 
     static void invoke(final String mainClass, final String[] args) {
+        Agent.addClassPath();
         try {
             final Class<?> cls = Class.forName(mainClass, true, ClassLoader.getSystemClassLoader());
             final Method m = cls.getMethod("main", String[].class);

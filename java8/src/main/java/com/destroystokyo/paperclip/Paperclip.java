@@ -28,8 +28,10 @@ import org.jbsdiff.Patch;
 class Paperclip {
 
     private final static File cache;
-    private final static File customPatchInfo = new File("paperclip.json");
     private static MessageDigest digest;
+    private final static File customPatchInfo = new File("paperclip.json");
+
+    static File paperJar;
 
     static {
         try {
@@ -68,7 +70,7 @@ class Paperclip {
         }
 
         final File vanillaJar = new File(cache, "mojang_" + patchInfo.getVersion() + ".jar");
-        final File paperJar = new File(cache, "patched_" + patchInfo.getVersion() + ".jar");
+        paperJar = new File(cache, "patched_" + patchInfo.getVersion() + ".jar");
 
         final boolean vanillaValid;
         final boolean paperValid;

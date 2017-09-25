@@ -77,7 +77,7 @@
                                 <manifestEntries>
                                     <Main-Class>com.destroystokyo.paperclip.Main</Main-Class>
                                     <Multi-Release>true</Multi-Release>
-                                    <Class-Path>cache/patched_${mcver}.jar</Class-Path>
+                                    <Launcher-Agent-Class>com.destroystokyo.paperclip.Agent</Launcher-Agent-Class>
                                 </manifestEntries>
                             </archive>
                         </configuration>
