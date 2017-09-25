@@ -14,6 +14,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.security.MessageDigest;
@@ -26,9 +27,21 @@ import org.jbsdiff.Patch;
 
 class Paperclip {
 
-    private final static File cache = new File("cache");
+    private final static File cache;
     private final static File customPatchInfo = new File("paperclip.json");
     private static MessageDigest digest;
+
+    static {
+        try {
+            cache = new File(new File(Paperclip.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParentFile(), "cache");
+        } catch (final URISyntaxException e) {
+            System.err.println("Error finding jar location to set cache directory");
+            e.printStackTrace();
+            System.exit(1);
+            // Make compiler happy
+            throw new RuntimeException();
+        }
+    }
 
     static void run(final String[] args) {
         try {
