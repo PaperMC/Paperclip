@@ -14,13 +14,33 @@ public class Agent {
             throw new RuntimeException("System ClassLoader is not URLClassLoader");
         }
         try {
-            final Method addURL = ((URLClassLoader) loader).getClass().getSuperclass().getDeclaredMethod("addURL", URL.class);
+            final Method addURL = getAddMethod(loader);
+            if (addURL == null) {
+                System.err.println("Unable to find method to add Paper jar to System ClassLoader");
+                System.exit(1);
+            }
             addURL.setAccessible(true);
             addURL.invoke(loader, Paperclip.paperJar.toURI().toURL());
-        } catch (final NoSuchMethodException | IllegalAccessException | InvocationTargetException | MalformedURLException e) {
+        } catch (final IllegalAccessException | InvocationTargetException | MalformedURLException e) {
             System.err.println("Unable to add Paper Jar to System ClassLoader");
             e.printStackTrace();
             System.exit(1);
         }
+    }
+
+    private static Method getAddMethod(final Object o) {
+        Class<?> clazz = o.getClass();
+        Method m = null;
+        while (m == null) {
+            try {
+                m = clazz.getDeclaredMethod("addURL", URL.class);
+            } catch (NoSuchMethodException ignored) {
+                clazz = clazz.getSuperclass();
+                if (clazz == null) {
+                    return null;
+                }
+            }
+        }
+        return m;
     }
 }
