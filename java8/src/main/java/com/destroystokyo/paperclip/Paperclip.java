@@ -27,23 +27,11 @@ import org.jbsdiff.Patch;
 
 class Paperclip {
 
-    private final static File cache;
+    private final static File cache = new File("cache");
     private static MessageDigest digest;
     private final static File customPatchInfo = new File("paperclip.json");
 
     static File paperJar;
-
-    static {
-        try {
-            cache = new File(new File(Paperclip.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParentFile(), "cache");
-        } catch (final URISyntaxException e) {
-            System.err.println("Error finding jar location to set cache directory");
-            e.printStackTrace();
-            System.exit(1);
-            // Make compiler happy
-            throw new RuntimeException();
-        }
-    }
 
     static void run(final String[] args) {
         try {
