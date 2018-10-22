@@ -90,7 +90,7 @@
     <pluginRepositories>
         <pluginRepository>
             <id>destroystokyo-snapshots</id>
-            <url>https://repo.destroystokyo.com/repository/maven-snapshots/</url>
+            <url>https://papermc.io/repo/repository/maven-snapshots/</url>
         </pluginRepository>
     </pluginRepositories>
 
