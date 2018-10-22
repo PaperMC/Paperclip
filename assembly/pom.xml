@@ -24,7 +24,7 @@
                     <plugin>
                         <groupId>com.destroystokyo</groupId>
                         <artifactId>paperclip-maven-plugin</artifactId>
-                        <version>1.3-SNAPSHOT</version>
+                        <version>1.4-SNAPSHOT</version>
                         <executions>
                             <execution>
                                 <goals>
