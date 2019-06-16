@@ -13,10 +13,6 @@
             <outputDirectory>.</outputDirectory>
         </fileSet>
         <fileSet>
-            <directory>${project.basedir}/../java6/target/classes/</directory>
-            <outputDirectory>.</outputDirectory>
-        </fileSet>
-        <fileSet>
             <directory>${project.basedir}/../java8/target/classes/</directory>
             <outputDirectory>.</outputDirectory>
         </fileSet>
