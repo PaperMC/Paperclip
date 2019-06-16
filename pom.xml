@@ -19,7 +19,6 @@
     </properties>
 
     <modules>
-        <module>java6</module>
         <module>java8</module>
         <module>java9</module>
         <module>assembly</module>
