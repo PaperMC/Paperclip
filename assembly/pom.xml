@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.destroystokyo</groupId>
+    <groupId>io.papermc</groupId>
     <artifactId>paperclip-assembly</artifactId>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -22,9 +22,9 @@
             <build>
                 <plugins>
                     <plugin>
-                        <groupId>com.destroystokyo</groupId>
+                        <groupId>io.papermc</groupId>
                         <artifactId>paperclip-maven-plugin</artifactId>
-                        <version>1.4-SNAPSHOT</version>
+                        <version>1.5-SNAPSHOT</version>
                         <executions>
                             <execution>
                                 <goals>
@@ -48,7 +48,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>2.4</version>
+                <version>3.1.2</version>
                 <executions>
                     <execution>
                         <id>default-jar</id>
@@ -59,7 +59,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.1.0</version>
+                <version>3.1.1</version>
                 <executions>
                     <execution>
                         <id>full</id>
@@ -75,9 +75,9 @@
                             </descriptors>
                             <archive>
                                 <manifestEntries>
-                                    <Main-Class>com.destroystokyo.paperclip.Main</Main-Class>
+                                    <Main-Class>io.papermc.paperclip.Main</Main-Class>
                                     <Multi-Release>true</Multi-Release>
-                                    <Launcher-Agent-Class>com.destroystokyo.paperclip.Agent</Launcher-Agent-Class>
+                                    <Launcher-Agent-Class>Agent</Launcher-Agent-Class>
                                 </manifestEntries>
                             </archive>
                         </configuration>
@@ -89,14 +89,14 @@
 
     <pluginRepositories>
         <pluginRepository>
-            <id>destroystokyo-snapshots</id>
+            <id>papermc-snapshots</id>
             <url>https://papermc.io/repo/repository/maven-snapshots/</url>
         </pluginRepository>
     </pluginRepositories>
 
     <dependencies>
         <dependency>
-            <groupId>com.destroystokyo</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>paperclip-java8</artifactId>
             <version>${project.version}</version>
         </dependency>

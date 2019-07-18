@@ -1,20 +1,19 @@
 /*
  * Paperclip - Paper Minecraft launcher
  *
- * Copyright (c) 2017 Kyle Wood (DemonWav)
- * https://github.com/PaperMC/Paper
+ * Copyright (c) 2019 Kyle Wood (DemonWav)
+ * https://github.com/PaperMC/Paperclip
  *
  * MIT License
  */
 
-package com.destroystokyo.paperclip;
+package io.papermc.paperclip;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URISyntaxException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.security.MessageDigest;

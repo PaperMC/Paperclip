@@ -1,4 +1,13 @@
-package com.destroystokyo.paperclip;
+/*
+ * Paperclip - Paper Minecraft launcher
+ *
+ * Copyright (c) 2019 Kyle Wood (DemonWav)
+ * https://github.com/PaperMC/Paperclip
+ *
+ * MIT License
+ */
+
+package io.papermc.paperclip;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;

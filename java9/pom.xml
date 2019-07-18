@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.destroystokyo</groupId>
+    <groupId>io.papermc</groupId>
     <artifactId>paperclip-java9</artifactId>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.2-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -16,7 +16,7 @@
     <build>
         <plugins>
             <plugin>
-                <version>3.6.1</version>
+                <version>3.8.1</version>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
@@ -31,7 +31,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.destroystokyo</groupId>
+            <groupId>${project.groupId}</groupId>
             <artifactId>paperclip-java8</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
