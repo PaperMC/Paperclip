@@ -77,7 +77,7 @@
                                 <manifestEntries>
                                     <Main-Class>io.papermc.paperclip.Main</Main-Class>
                                     <Multi-Release>true</Multi-Release>
-                                    <Launcher-Agent-Class>Agent</Launcher-Agent-Class>
+                                    <Launcher-Agent-Class>io.papermc.paperclip.Agent</Launcher-Agent-Class>
                                 </manifestEntries>
                             </archive>
                         </configuration>
