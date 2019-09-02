@@ -11,9 +11,10 @@ package io.papermc.paperclip;
 
 import java.io.IOException;
 import java.lang.instrument.Instrumentation;
+import java.nio.file.Path;
 import java.util.jar.JarFile;
 
-public class Agent {
+public final class Agent {
 
     private static Instrumentation inst = null;
 
@@ -21,9 +22,16 @@ public class Agent {
         Agent.inst = inst;
     }
 
-    static void addClassPath() {
+    @SuppressWarnings("unused") // This class replaces the Agent class in the java8 module when run on Java9+
+    static void addToClassPath(final Path paperJar) {
+        if (inst == null) {
+            System.err.println("Unable to retrieve Instrumentation API to add Paper jar to ClassPath");
+            System.exit(1);
+            return;
+        }
         try {
-            inst.appendToSystemClassLoaderSearch(new JarFile(Paperclip.paperJar));
+            inst.appendToSystemClassLoaderSearch(new JarFile(paperJar.toFile()));
+            inst = null;
         } catch (final IOException e) {
             System.err.println("Failed to add Paper jar to ClassPath");
             e.printStackTrace();

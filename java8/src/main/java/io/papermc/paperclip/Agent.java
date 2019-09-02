@@ -14,10 +14,11 @@ import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Path;
 
-public class Agent {
+public final class Agent {
 
-    static void addClassPath() {
+    static void addToClassPath(final Path paperJar) {
         final ClassLoader loader = ClassLoader.getSystemClassLoader();
         if (!(loader instanceof URLClassLoader)) {
             throw new RuntimeException("System ClassLoader is not URLClassLoader");
@@ -29,7 +30,7 @@ public class Agent {
                 System.exit(1);
             }
             addURL.setAccessible(true);
-            addURL.invoke(loader, Paperclip.paperJar.toURI().toURL());
+            addURL.invoke(loader, paperJar.toUri().toURL());
         } catch (final IllegalAccessException | InvocationTargetException | MalformedURLException e) {
             System.err.println("Unable to add Paper Jar to System ClassLoader");
             e.printStackTrace();
@@ -43,7 +44,7 @@ public class Agent {
         while (m == null) {
             try {
                 m = clazz.getDeclaredMethod("addURL", URL.class);
-            } catch (NoSuchMethodException ignored) {
+            } catch (final NoSuchMethodException ignored) {
                 clazz = clazz.getSuperclass();
                 if (clazz == null) {
                     return null;

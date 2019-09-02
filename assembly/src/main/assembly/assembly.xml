@@ -27,10 +27,6 @@
             <useProjectArtifact>false</useProjectArtifact>
             <unpack>true</unpack>
             <scope>runtime</scope>
-            <excludes>
-                <exclude>junit*</exclude>
-                <exclude>org.hamcrest*</exclude>
-            </excludes>
         </dependencySet>
     </dependencySets>
 </assembly>

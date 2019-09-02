@@ -9,73 +9,81 @@
 
 package io.papermc.paperclip;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.charset.Charset;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
+import java.util.Properties;
 
-class PatchData {
-    private final URL patchFile;
-    private final URL originalUrl;
-    private final byte[] originalHash;
-    private final byte[] patchedHash;
-    private final String version;
+final class PatchData {
+    final URL patchFile;
+    final URL originalUrl;
+    final byte[] originalHash;
+    final byte[] patchedHash;
+    final String version;
 
-    private PatchData(final JSONObject obj) {
-        final String patch = (String) obj.get("patch");
+    private PatchData(final Properties prop) {
+        final String patch = prop.getProperty("patch");
         // First try and parse the patch as a uri
         URL patchFile = PatchData.class.getResource("/" + patch);
-        if (new File(patch).exists()) {
-            try {
-                patchFile = new File(patch).toURI().toURL();
-            } catch (MalformedURLException ignored) {}
+        {
+            final File tempFile = new File(patch);
+            if (tempFile.exists()) {
+                try {
+                    patchFile = tempFile.toURI().toURL();
+                } catch (final MalformedURLException ignored) {}
+            }
         }
         if (patchFile == null) {
             throw new IllegalArgumentException("Couldn't find " + patch);
         }
         this.patchFile = patchFile;
         try {
-            this.originalUrl = new URL((String) obj.get("sourceUrl"));
+            this.originalUrl = new URL(prop.getProperty("sourceUrl"));
         } catch (final MalformedURLException e) {
             throw new IllegalArgumentException("Invalid URL", e);
         }
-        this.originalHash = Utils.fromHex((String) obj.get("originalHash"));
-        this.patchedHash = Utils.fromHex((String) obj.get("patchedHash"));
-        this.version = ((String) obj.get("version"));
+        this.originalHash = fromHex(prop.getProperty("originalHash"));
+        this.patchedHash = fromHex(prop.getProperty("patchedHash"));
+        this.version = prop.getProperty("version");
     }
 
-    URL getPatchFile() {
-        return patchFile;
-    }
-
-    URL getOriginalUrl() {
-        return originalUrl;
-    }
-
-    byte[] getOriginalHash() {
-        return originalHash;
-    }
-
-    byte[] getPatchedHash() {
-        return patchedHash;
-    }
-
-    String getVersion() {
-        return version;
-    }
-
-    static PatchData parse(final InputStream in) throws IOException {
+    static PatchData parse(final Reader defaults, final Reader optional) throws IOException {
         try {
-            final Object obj = new JSONParser().parse(new BufferedReader(new InputStreamReader(in, Charset.forName("UTF-8"))));
-            return new PatchData((JSONObject) obj);
+            final Properties defaultProps = new Properties();
+            defaultProps.load(defaults);
+            final Properties props = new Properties(defaultProps);
+            if (optional != null) {
+                props.load(optional);
+            }
+            return new PatchData(props);
+        } catch (final IOException e) {
+            throw e;
         } catch (final Exception e) {
-            throw new IllegalArgumentException("Invalid json", e);
+            throw new IllegalArgumentException("Invalid properties file", e);
         }
+    }
+
+    private static byte[] fromHex(final String s) {
+        if (s.length() % 2 != 0) {
+            throw new IllegalArgumentException("Hex " + s + " must be divisible by two");
+        }
+        final byte[] bytes = new byte[s.length() / 2];
+        for (int i = 0; i < bytes.length; i++) {
+            final char left = s.charAt(i * 2);
+            final char right = s.charAt(i * 2 + 1);
+            final byte b = (byte) ((getValue(left) << 4) | (getValue(right) & 0xF));
+            bytes[i] = b;
+        }
+        return bytes;
+    }
+
+    private static int getValue(final char c) {
+        int i = Character.digit(c, 16);
+        if (i < 0) {
+            throw new IllegalArgumentException("Invalid hex char: " + c);
+        }
+        return i;
     }
 }
