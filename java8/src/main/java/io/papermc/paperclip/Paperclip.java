@@ -72,8 +72,8 @@ public final class Paperclip {
 
         final PatchData patchData;
         try (
-            final Reader defaultsReader =
-                new BufferedReader(new InputStreamReader(Paperclip.class.getResourceAsStream("/patch.properties")));
+            final InputStream defaultsInput = Paperclip.class.getResourceAsStream("/patch.properties");
+            final Reader defaultsReader = new BufferedReader(new InputStreamReader(defaultsInput));
             final Reader optionalReader = getConfig()
         ) {
             patchData = PatchData.parse(defaultsReader, optionalReader);
@@ -97,7 +97,9 @@ public final class Paperclip {
             if (isJarInvalid(digest, vanillaJar, patchData.originalHash)) { // check vanilla jar
                 System.out.println("Downloading vanilla jar...");
                 try {
-                    Files.createDirectories(cache);
+                    if (!Files.isDirectory(cache)) {
+                        Files.createDirectories(cache);
+                    }
                     Files.deleteIfExists(vanillaJar);
                 } catch (final IOException e) {
                     System.err.println("Failed to setup cache directory");
