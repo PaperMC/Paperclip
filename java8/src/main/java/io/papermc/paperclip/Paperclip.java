@@ -126,7 +126,7 @@ public final class Paperclip {
         final byte[] patch;
         try {
             vanillaJarBytes = readBytes(vanillaJar);
-            patch = readFully(patchData.patchFile.openStream(), -1);
+            patch = readFully(patchData.patchFile.openStream());
         } catch (final IOException e) {
             System.err.println("Failed to read vanilla jar and patch file");
             e.printStackTrace();
@@ -233,18 +233,11 @@ public final class Paperclip {
         }
     }
 
-    private static byte[] readFully(final InputStream in, final int size) throws IOException {
+    private static byte[] readFully(final InputStream in) throws IOException {
         try {
-            final int bufSize;
-            if (size == -1) {
-                bufSize = 16 * 1024;
-            } else {
-                bufSize = size;
-            }
-
             // In a test this was 12 ms quicker than a ByteBuffer
             // and for some reason that matters here.
-            byte[] buffer = new byte[bufSize];
+            byte[] buffer = new byte[16 * 1024];
             int off = 0;
             int read;
             while ((read = in.read(buffer, off, buffer.length - off)) != -1) {
@@ -261,7 +254,7 @@ public final class Paperclip {
 
     private static byte[] readBytes(final Path file) {
         try {
-            return readFully(Files.newInputStream(file), (int) Files.size(file));
+            return readFully(Files.newInputStream(file));
         } catch (final IOException e) {
             System.err.println("Failed to read all of the data from " + file.toAbsolutePath());
             e.printStackTrace();
