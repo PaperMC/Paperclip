@@ -77,95 +77,18 @@ public final class Paperclip {
             final Reader optionalReader = getConfig()
         ) {
             patchData = PatchData.parse(defaultsReader, optionalReader);
-        } catch (final IllegalArgumentException e) {
-            System.err.println("Invalid patch file");
-            e.printStackTrace();
-            System.exit(1);
-            throw new InternalError();
-        } catch (final IOException e) {
-            System.err.println("Error reading patch file");
+        } catch (final IOException | IllegalArgumentException e) {
+            if (e instanceof IOException) {
+                System.err.println("Error reading patch file");
+            } else {
+                System.err.println("Invalid patch file");
+            }
             e.printStackTrace();
             System.exit(1);
             throw new InternalError();
         }
 
-        final Path cache = Paths.get("cache");
-        final Path vanillaJar = cache.resolve("mojang_" + patchData.version + ".jar");
-        final Path paperJar = cache.resolve("patched_" + patchData.version + ".jar");
-
-        if (isJarInvalid(digest, paperJar, patchData.patchedHash)) { // check paper jar
-            if (isJarInvalid(digest, vanillaJar, patchData.originalHash)) { // check vanilla jar
-                System.out.println("Downloading vanilla jar...");
-                try {
-                    if (!Files.isDirectory(cache)) {
-                        Files.createDirectories(cache);
-                    }
-                    Files.deleteIfExists(vanillaJar);
-                } catch (final IOException e) {
-                    System.err.println("Failed to setup cache directory");
-                    e.printStackTrace();
-                    System.exit(1);
-                }
-
-                try (
-                    final ReadableByteChannel source = Channels.newChannel(patchData.originalUrl.openStream());
-                    final FileChannel fileChannel = FileChannel.open(vanillaJar, CREATE, WRITE, TRUNCATE_EXISTING)
-                ) {
-                    fileChannel.transferFrom(source, 0, Long.MAX_VALUE);
-                } catch (final IOException e) {
-                    System.err.println("Failed to download vanilla jar");
-                    e.printStackTrace();
-                    System.exit(1);
-                }
-
-                // Only continue from here if the downloaded jar is correct
-                if (isJarInvalid(digest, vanillaJar, patchData.originalHash)) {
-                    System.err.println("Downloaded vanilla jar is not valid");
-                    System.exit(1);
-                }
-            }
-
-            if (Files.exists(paperJar)) {
-                try {
-                    Files.delete(paperJar);
-                } catch (final IOException e) {
-                    System.err.println("Failed to delete invalid jar " + paperJar.toAbsolutePath());
-                    e.printStackTrace();
-                    System.exit(1);
-                }
-            }
-
-            System.out.println("Patching vanilla jar...");
-            final byte[] vanillaJarBytes;
-            final byte[] patch;
-            try {
-                vanillaJarBytes = readBytes(vanillaJar);
-                patch = readFully(patchData.patchFile.openStream(), -1);
-            } catch (final IOException e) {
-                System.err.println("Failed to read vanilla jar and patch file");
-                e.printStackTrace();
-                System.exit(1);
-                throw new InternalError();
-            }
-
-            // Patch the jar to create the final jar to run
-            try (
-                final OutputStream jarOutput =
-                     new BufferedOutputStream(Files.newOutputStream(paperJar, CREATE, WRITE, TRUNCATE_EXISTING))
-            ) {
-                Patch.patch(vanillaJarBytes, patch, jarOutput);
-            } catch (final CompressorException | InvalidHeaderException | IOException e) {
-                System.err.println("Failed to patch vanilla jar");
-                e.printStackTrace();
-                System.exit(1);
-            }
-
-            // Only continue from here if the patched jar is correct
-            if (isJarInvalid(digest, paperJar, patchData.patchedHash)) {
-                System.err.println("Failed to patch vanilla jar, output patched jar is still not valid");
-                System.exit(1);
-            }
-        }
+        final Path paperJar = checkPaperJar(digest, patchData);
 
         // Exit if user has set `paperclip.patchonly` system property to `true`
         if (Boolean.getBoolean("paperclip.patchonly")) {
@@ -173,6 +96,105 @@ public final class Paperclip {
         }
 
         return paperJar;
+    }
+
+    private static Path checkPaperJar(
+        final MessageDigest digest,
+        final PatchData patchData
+    ) {
+        final Path cache = Paths.get("cache");
+        final Path paperJar = cache.resolve("patched_" + patchData.version + ".jar");
+
+        if (!isJarInvalid(digest, paperJar, patchData.patchedHash)) {
+            return paperJar;
+        }
+
+        final Path vanillaJar = checkVanillaJar(digest, patchData, cache);
+
+        if (Files.exists(paperJar)) {
+            try {
+                Files.delete(paperJar);
+            } catch (final IOException e) {
+                System.err.println("Failed to delete invalid jar " + paperJar.toAbsolutePath());
+                e.printStackTrace();
+                System.exit(1);
+            }
+        }
+
+        System.out.println("Patching vanilla jar...");
+        final byte[] vanillaJarBytes;
+        final byte[] patch;
+        try {
+            vanillaJarBytes = readBytes(vanillaJar);
+            patch = readFully(patchData.patchFile.openStream(), -1);
+        } catch (final IOException e) {
+            System.err.println("Failed to read vanilla jar and patch file");
+            e.printStackTrace();
+            System.exit(1);
+            throw new InternalError();
+        }
+
+        // Patch the jar to create the final jar to run
+        try (
+            final OutputStream jarOutput =
+                 new BufferedOutputStream(Files.newOutputStream(paperJar, CREATE, WRITE, TRUNCATE_EXISTING))
+        ) {
+            Patch.patch(vanillaJarBytes, patch, jarOutput);
+        } catch (final CompressorException | InvalidHeaderException | IOException e) {
+            System.err.println("Failed to patch vanilla jar");
+            e.printStackTrace();
+            System.exit(1);
+        }
+
+        // Only continue from here if the patched jar is correct
+        if (isJarInvalid(digest, paperJar, patchData.patchedHash)) {
+            System.err.println("Failed to patch vanilla jar, output patched jar is still not valid");
+            System.exit(1);
+        }
+
+        return paperJar;
+    }
+
+    private static Path checkVanillaJar(
+        final MessageDigest digest,
+        final PatchData patchData,
+        final Path cache
+    ) {
+        final Path vanillaJar = cache.resolve("mojang_" + patchData.version + ".jar");
+        if (!isJarInvalid(digest, vanillaJar, patchData.originalHash)) {
+            return vanillaJar;
+        }
+
+        System.out.println("Downloading vanilla jar...");
+        try {
+            if (!Files.isDirectory(cache)) {
+                Files.createDirectories(cache);
+            }
+            Files.deleteIfExists(vanillaJar);
+        } catch (final IOException e) {
+            System.err.println("Failed to setup cache directory");
+            e.printStackTrace();
+            System.exit(1);
+        }
+
+        try (
+            final ReadableByteChannel source = Channels.newChannel(patchData.originalUrl.openStream());
+            final FileChannel fileChannel = FileChannel.open(vanillaJar, CREATE, WRITE, TRUNCATE_EXISTING)
+        ) {
+            fileChannel.transferFrom(source, 0, Long.MAX_VALUE);
+        } catch (final IOException e) {
+            System.err.println("Failed to download vanilla jar");
+            e.printStackTrace();
+            System.exit(1);
+        }
+
+        // Only continue from here if the downloaded jar is correct
+        if (isJarInvalid(digest, vanillaJar, patchData.originalHash)) {
+            System.err.println("Downloaded vanilla jar is not valid");
+            System.exit(1);
+        }
+
+        return vanillaJar;
     }
 
     private static String getMainClass(final Path paperJar) {
