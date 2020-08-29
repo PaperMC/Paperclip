@@ -25,9 +25,11 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.jar.JarInputStream;
 import org.apache.commons.compress.compressors.CompressorException;
 import org.jbsdiff.InvalidHeaderException;
@@ -92,6 +94,12 @@ public final class Paperclip {
 
         // Exit if user has set `paperclip.patchonly` system property to `true`
         if (Boolean.getBoolean("paperclip.patchonly")) {
+            System.exit(0);
+        }
+
+        // Install it to the local maven repository if `paperclip.install` is `true`
+        if (Boolean.getBoolean("paperclip.install")) {
+            mavenInstall(paperJar);
             System.exit(0);
         }
 
@@ -222,6 +230,54 @@ public final class Paperclip {
             System.exit(1);
             throw new InternalError();
         }
+    }
+
+    private static void mavenInstall(Path paperJar) {
+        try {
+            if (new ProcessBuilder("mvn", "-version").start().waitFor() != 0) {
+                // Error! It's either not on the path, or something went terribly wrong.
+                System.err.println("Maven must be installed and on your PATH.");
+                System.exit(1);
+            }
+        } catch (IOException | InterruptedException ex) {
+            System.err.println("Maven must be installed and on your PATH.");
+            ex.printStackTrace();
+            System.exit(1);
+        }
+
+        try {
+            Path pomPath = Paths.get("paper.xml");
+
+            InputStream pom = Paperclip.class.getResourceAsStream("/META-INF/maven/io.papermc.paper/paper/pom.xml");
+            if (pom == null) {
+                pom = Paperclip.class.getResourceAsStream("/META-INF/maven/com.destroystokyo.paper/paper/pom.xml");
+            }
+            if (pom == null) {
+                System.err.println("No Paper pom file could be found.");
+                System.exit(1);
+            }
+            try {
+                Files.copy(pom, pomPath, StandardCopyOption.REPLACE_EXISTING);
+                pomPath.toFile().deleteOnExit();
+            } finally {
+                // We didn't use try-with-resources, so we have to finally-block this.
+                pom.close();
+            }
+
+            if (new ProcessBuilder("mvn", "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath).start().waitFor() != 0) {
+                // Error! Could not install the file.
+                System.err.println("Could not install the Paper file.");
+                System.exit(1);
+                return;
+            }
+        } catch (IOException | InterruptedException ex) {
+            System.err.println("Could not install the Paper file.");
+            ex.printStackTrace();
+            System.exit(1);
+            return;
+        }
+
+        System.out.println("Installed jar into local maven repository.");
     }
 
     private static Reader getConfig() throws IOException {
