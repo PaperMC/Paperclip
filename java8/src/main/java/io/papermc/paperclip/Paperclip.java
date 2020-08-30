@@ -29,8 +29,9 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.jar.JarInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import org.apache.commons.compress.compressors.CompressorException;
 import org.jbsdiff.InvalidHeaderException;
 import org.jbsdiff.Patch;
@@ -232,6 +233,28 @@ public final class Paperclip {
         }
     }
 
+    private static Path extractPom(Path paperJar) throws IOException {
+        try (final ZipFile zipFile = new ZipFile(paperJar.toFile())) {
+            Path pomPath = Paths.get("paper.xml");
+
+            ZipEntry pomEntry = zipFile.getEntry("META-INF/maven/io.papermc.paper/paper/pom.xml");
+
+            if (pomEntry == null) {
+                pomEntry = zipFile.getEntry("META-INF/maven/com.destroystokyo.paper/paper/pom.xml");
+            }
+            if (pomEntry == null) {
+                System.err.println("No Paper pom file could be found.");
+                return null;
+            }
+            try (InputStream pom = zipFile.getInputStream(pomEntry)) {
+                Files.copy(pom, pomPath, StandardCopyOption.REPLACE_EXISTING);
+                pomPath.toFile().deleteOnExit();
+            }
+
+            return pomPath;
+        }
+    }
+
     private static void mavenInstall(Path paperJar) {
         try {
             if (new ProcessBuilder("mvn", "-version").start().waitFor() != 0) {
@@ -246,34 +269,20 @@ public final class Paperclip {
         }
 
         try {
-            Path pomPath = Paths.get("paper.xml");
-
-            InputStream pom = Paperclip.class.getResourceAsStream("/META-INF/maven/io.papermc.paper/paper/pom.xml");
-            if (pom == null) {
-                pom = Paperclip.class.getResourceAsStream("/META-INF/maven/com.destroystokyo.paper/paper/pom.xml");
-            }
-            if (pom == null) {
+            Path pomPath = extractPom(paperJar);
+            if (pomPath == null) {
                 System.err.println("No Paper pom file could be found.");
                 System.exit(1);
-            }
-            try {
-                Files.copy(pom, pomPath, StandardCopyOption.REPLACE_EXISTING);
-                pomPath.toFile().deleteOnExit();
-            } finally {
-                // We didn't use try-with-resources, so we have to finally-block this.
-                pom.close();
             }
 
             if (new ProcessBuilder("mvn", "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath).start().waitFor() != 0) {
                 // Error! Could not install the file.
                 System.err.println("Could not install the Paper file.");
-                System.exit(1);
                 return;
             }
         } catch (IOException | InterruptedException ex) {
             System.err.println("Could not install the Paper file.");
             ex.printStackTrace();
-            System.exit(1);
             return;
         }
 
