@@ -29,6 +29,7 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -256,8 +257,10 @@ public final class Paperclip {
     }
 
     private static void mavenInstall(Path paperJar) {
+        // On Windows we need to use "mvn.cmd" instead of "mvn"
+        final String mavenCommand = System.getProperty("os.name").toLowerCase(Locale.ENGLISH).contains("windows") ? "mvn.cmd" : "mvn";
         try {
-            if (new ProcessBuilder("mvn", "-version").start().waitFor() != 0) {
+            if (new ProcessBuilder(mavenCommand, "-version").start().waitFor() != 0) {
                 // Error! It's either not on the path, or something went terribly wrong.
                 System.err.println("Maven must be installed and on your PATH.");
                 System.exit(1);
@@ -275,7 +278,7 @@ public final class Paperclip {
                 System.exit(1);
             }
 
-            if (new ProcessBuilder("mvn", "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath).start().waitFor() != 0) {
+            if (new ProcessBuilder(mavenCommand, "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath).start().waitFor() != 0) {
                 // Error! Could not install the file.
                 System.err.println("Could not install the Paper file.");
                 return;
