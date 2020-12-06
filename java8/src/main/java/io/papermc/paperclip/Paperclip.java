@@ -43,25 +43,7 @@ import static java.nio.file.StandardOpenOption.WRITE;
 
 public final class Paperclip {
 
-    private static int getVersion() {
-        String version = System.getProperty("java.version");
-        if(version.startsWith("1.")) {
-            version = version.substring(2, 3);
-        } else {
-            int dot = version.indexOf(".");
-            if(dot != -1) { version = version.substring(0, dot); }
-        } return Integer.parseInt(version);
-    }
-
     public static void main(final String[] args) {
-        if (getVersion() < 11) {
-            System.err.println("Java 11 or higher is required to use Purpur!");
-            System.err.println("");
-            System.err.println("Please update your version of java!");
-            System.err.println("");
-            return;
-        }
-
         final Method mainMethod;
         {
             final Path paperJar = setupEnv();
