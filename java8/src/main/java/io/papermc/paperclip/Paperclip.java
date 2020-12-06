@@ -256,13 +256,10 @@ public final class Paperclip {
         try (final ZipFile zipFile = new ZipFile(paperJar.toFile())) {
             Path pomPath = Paths.get("paper.xml");
 
-            ZipEntry pomEntry = zipFile.getEntry("META-INF/maven/io.papermc.paper/paper/pom.xml");
+            ZipEntry pomEntry = zipFile.getEntry("META-INF/maven/net.pl3x.purpur/purpur/pom.xml");
 
             if (pomEntry == null) {
-                pomEntry = zipFile.getEntry("META-INF/maven/com.destroystokyo.paper/paper/pom.xml");
-            }
-            if (pomEntry == null) {
-                System.err.println("No Paper pom file could be found.");
+                System.err.println("No Purpur pom file could be found.");
                 return null;
             }
             try (InputStream pom = zipFile.getInputStream(pomEntry)) {
@@ -292,17 +289,17 @@ public final class Paperclip {
         try {
             Path pomPath = extractPom(paperJar);
             if (pomPath == null) {
-                System.err.println("No Paper pom file could be found.");
+                System.err.println("No Purpur pom file could be found.");
                 System.exit(1);
             }
 
             if (new ProcessBuilder(mavenCommand, "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath).start().waitFor() != 0) {
                 // Error! Could not install the file.
-                System.err.println("Could not install the Paper file.");
+                System.err.println("Could not install the Purpur file.");
                 return;
             }
         } catch (IOException | InterruptedException ex) {
-            System.err.println("Could not install the Paper file.");
+            System.err.println("Could not install the Purpur file.");
             ex.printStackTrace();
             return;
         }
