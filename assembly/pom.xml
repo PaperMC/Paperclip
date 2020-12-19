@@ -11,6 +11,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <main.class.name>io.papermc.paperclip.Paperclip</main.class.name>
+        <agent.class.name>io.papermc.paperclip.Agent</agent.class.name>
     </properties>
     
     <profiles>
@@ -75,9 +77,10 @@
                             </descriptors>
                             <archive>
                                 <manifestEntries>
-                                    <Main-Class>io.papermc.paperclip.Paperclip</Main-Class>
+                                    <Main-Class>${main.class.name}</Main-Class>
                                     <Multi-Release>true</Multi-Release>
-                                    <Launcher-Agent-Class>io.papermc.paperclip.Agent</Launcher-Agent-Class>
+                                    <Launcher-Agent-Class>${agent.class.name}</Launcher-Agent-Class>
+                                    <Premain-Class>${agent.class.name}</Premain-Class>
                                 </manifestEntries>
                             </archive>
                         </configuration>

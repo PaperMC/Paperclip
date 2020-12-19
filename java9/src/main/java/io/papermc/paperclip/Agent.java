@@ -18,6 +18,10 @@ public final class Agent {
 
     private static Instrumentation inst = null;
 
+    public static void premain(final String agentArgs, final Instrumentation inst) {
+        Agent.inst = inst;
+    }
+
     public static void agentmain(final String agentArgs, final Instrumentation inst) {
         Agent.inst = inst;
     }
