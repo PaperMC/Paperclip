@@ -11,7 +11,6 @@ package io.papermc.paperclip;
 
 import io.sigpipe.jbsdiff.InvalidHeaderException;
 import io.sigpipe.jbsdiff.Patch;
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -32,7 +31,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.jar.JarInputStream;
+import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import org.apache.commons.compress.compressors.CompressorException;
@@ -208,11 +207,8 @@ public final class Paperclip {
     }
 
     private static String getMainClass(final Path paperJar) {
-        try (
-            final InputStream is = new BufferedInputStream(Files.newInputStream(paperJar));
-            final JarInputStream js = new JarInputStream(is)
-        ) {
-            return js.getManifest().getMainAttributes().getValue("Main-Class");
+        try (final JarFile jarFile = new JarFile(paperJar.toFile())) {
+            return jarFile.getManifest().getMainAttributes().getValue("Main-Class");
         } catch (final IOException e) {
             System.err.println("Error reading from patched jar");
             e.printStackTrace();
@@ -265,7 +261,7 @@ public final class Paperclip {
                 System.err.println("Maven must be installed and on your PATH.");
                 System.exit(1);
             }
-        } catch (IOException | InterruptedException ex) {
+        } catch (final IOException | InterruptedException ex) {
             System.err.println("Maven must be installed and on your PATH.");
             ex.printStackTrace();
             System.exit(1);
@@ -283,7 +279,7 @@ public final class Paperclip {
                 System.err.println("Could not install the Paper file.");
                 return;
             }
-        } catch (IOException | InterruptedException ex) {
+        } catch (final IOException | InterruptedException ex) {
             System.err.println("Could not install the Paper file.");
             ex.printStackTrace();
             return;
