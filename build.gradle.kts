@@ -116,9 +116,9 @@ publishing {
 
         repositories {
             val url = if (isSnapshot) {
-                "https://repo.demonwav.com/snapshots"
+                "https://papermc.io/repo/repository/maven-snapshots/"
             } else {
-                "https://repo.demonwav.com/releases"
+                "https://papermc.io/repo/repository/maven-releases/"
             }
 
             maven(url) {
