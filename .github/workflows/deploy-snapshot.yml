@@ -1,0 +1,42 @@
+name: Deploy Snapshot
+on:
+  push:
+    branches: ['main']
+    paths-ignore:
+      - 'license.txt'
+      - 'readme.md'
+      - '.gitignore'
+      - '.gitattributes'
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: actions/checkout@v2
+      - uses: gradle/wrapper-validation-action@v1
+      - uses: actions/setup-java@v1
+        with:
+          java-version: 16
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/jdks
+            ~/.gradle/native
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Get project version
+        id: get_version
+        shell: bash
+        run: |
+          project_version=$(./gradlew -q --console=plain printVersion --no-daemon)
+          echo ::set-output name=version::$project_version
+      - name: Deploy snapshot version
+        if: endsWith(steps.get_version.outputs.version, '-SNAPSHOT')
+        run: ./gradlew -Dorg.gradle.parallel=true publish --no-daemon --stacktrace
+        env:
+          ORG_GRADLE_PROJECT_paperUsername: ${{ secrets.DEPLOY_USER }}
+          ORG_GRADLE_PROJECT_paperPassword: ${{ secrets.DEPLOY_PASS }}
