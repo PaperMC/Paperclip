@@ -11,5 +11,6 @@ java {
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(9)
+    options.release.set(6)
+    options.compilerArgs = listOf("-Xlint:-options")
 }

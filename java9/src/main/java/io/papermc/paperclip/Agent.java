@@ -26,7 +26,6 @@ public final class Agent {
         Agent.inst = inst;
     }
 
-    @SuppressWarnings("unused") // This class replaces the Agent class in the java8 module when run on Java9+
     static void addToClassPath(final Path paperJar) {
         if (inst == null) {
             System.err.println("Unable to retrieve Instrumentation API to add Paper jar to classpath. If you're " +
@@ -39,7 +38,7 @@ public final class Agent {
             inst.appendToSystemClassLoaderSearch(new JarFile(paperJar.toFile()));
             inst = null;
         } catch (final IOException e) {
-            System.err.println("Failed to add Paper jar to ClassPath");
+            System.err.println("Failed to add Paper jar to classpath");
             e.printStackTrace();
             System.exit(1);
         }

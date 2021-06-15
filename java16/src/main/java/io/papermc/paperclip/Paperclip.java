@@ -1,12 +1,3 @@
-/*
- * Paperclip - Paper Minecraft launcher
- *
- * Copyright (c) 2019 Kyle Wood (DemonWav)
- * https://github.com/PaperMC/Paperclip
- *
- * MIT License
- */
-
 package io.papermc.paperclip;
 
 import io.sigpipe.jbsdiff.InvalidHeaderException;
@@ -31,6 +22,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -75,7 +67,10 @@ public final class Paperclip {
 
         final PatchData patchData;
         try (
-            final InputStream defaultsInput = Paperclip.class.getResourceAsStream("/patch.properties");
+            final InputStream defaultsInput = Objects.requireNonNull(
+                Paperclip.class.getResourceAsStream("/patch.properties"),
+                "No patch.properties file found inside paperclip jar"
+            );
             final Reader defaultsReader = new BufferedReader(new InputStreamReader(defaultsInput));
             final Reader optionalReader = getConfig()
         ) {
@@ -112,9 +107,9 @@ public final class Paperclip {
         final PatchData patchData
     ) {
         final Path cache = Paths.get("cache");
-        final Path paperJar = cache.resolve("patched_" + patchData.version + ".jar");
+        final Path paperJar = cache.resolve("patched_" + patchData.version() + ".jar");
 
-        if (!isJarInvalid(digest, paperJar, patchData.patchedHash)) {
+        if (!isJarInvalid(digest, paperJar, patchData.patchedHash())) {
             return paperJar;
         }
 
@@ -135,7 +130,7 @@ public final class Paperclip {
         final byte[] patch;
         try {
             vanillaJarBytes = readBytes(vanillaJar);
-            patch = readFully(patchData.patchFile.openStream());
+            patch = readFully(patchData.patchFile().openStream());
         } catch (final IOException e) {
             System.err.println("Failed to read vanilla jar and patch file");
             e.printStackTrace();
@@ -146,7 +141,7 @@ public final class Paperclip {
         // Patch the jar to create the final jar to run
         try (
             final OutputStream jarOutput =
-                 new BufferedOutputStream(Files.newOutputStream(paperJar, CREATE, WRITE, TRUNCATE_EXISTING))
+                new BufferedOutputStream(Files.newOutputStream(paperJar, CREATE, WRITE, TRUNCATE_EXISTING))
         ) {
             Patch.patch(vanillaJarBytes, patch, jarOutput);
         } catch (final CompressorException | InvalidHeaderException | IOException e) {
@@ -156,7 +151,7 @@ public final class Paperclip {
         }
 
         // Only continue from here if the patched jar is correct
-        if (isJarInvalid(digest, paperJar, patchData.patchedHash)) {
+        if (isJarInvalid(digest, paperJar, patchData.patchedHash())) {
             System.err.println("Failed to patch vanilla jar, output patched jar is still not valid");
             System.exit(1);
         }
@@ -169,8 +164,8 @@ public final class Paperclip {
         final PatchData patchData,
         final Path cache
     ) {
-        final Path vanillaJar = cache.resolve("mojang_" + patchData.version + ".jar");
-        if (!isJarInvalid(digest, vanillaJar, patchData.originalHash)) {
+        final Path vanillaJar = cache.resolve("mojang_" + patchData.version() + ".jar");
+        if (!isJarInvalid(digest, vanillaJar, patchData.originalHash())) {
             return vanillaJar;
         }
 
@@ -187,7 +182,7 @@ public final class Paperclip {
         }
 
         try (
-            final ReadableByteChannel source = Channels.newChannel(patchData.originalUrl.openStream());
+            final ReadableByteChannel source = Channels.newChannel(patchData.originalUrl().openStream());
             final FileChannel fileChannel = FileChannel.open(vanillaJar, CREATE, WRITE, TRUNCATE_EXISTING)
         ) {
             fileChannel.transferFrom(source, 0, Long.MAX_VALUE);
@@ -198,7 +193,7 @@ public final class Paperclip {
         }
 
         // Only continue from here if the downloaded jar is correct
-        if (isJarInvalid(digest, vanillaJar, patchData.originalHash)) {
+        if (isJarInvalid(digest, vanillaJar, patchData.originalHash())) {
             System.err.println("Downloaded vanilla jar is not valid");
             System.exit(1);
         }
@@ -243,7 +238,7 @@ public final class Paperclip {
                 System.err.println("No Paper pom file could be found.");
                 return null;
             }
-            try (InputStream pom = zipFile.getInputStream(pomEntry)) {
+            try (final InputStream pom = zipFile.getInputStream(pomEntry)) {
                 Files.copy(pom, pomPath, StandardCopyOption.REPLACE_EXISTING);
                 pomPath.toFile().deleteOnExit();
             }
@@ -298,7 +293,7 @@ public final class Paperclip {
     }
 
     private static byte[] readFully(final InputStream in) throws IOException {
-        try {
+        try (in) {
             // In a test this was 12 ms quicker than a ByteBuffer
             // and for some reason that matters here.
             byte[] buffer = new byte[16 * 1024];
@@ -311,8 +306,6 @@ public final class Paperclip {
                 }
             }
             return Arrays.copyOfRange(buffer, 0, off);
-        } finally {
-            in.close();
         }
     }
 

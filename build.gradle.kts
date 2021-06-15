@@ -4,20 +4,8 @@ plugins {
     `maven-publish`
 }
 
-group = "io.papermc"
-version = providers.gradleProperty("projectVersion").forUseAtConfigurationTime().get()
-description = providers.gradleProperty("projectDescription").forUseAtConfigurationTime().get()
-
 subprojects {
     apply(plugin = "java")
-
-    java {
-        toolchain {
-            languageVersion.set(JavaLanguageVersion.of(11))
-        }
-
-        withSourcesJar()
-    }
 
     tasks.withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
@@ -28,14 +16,19 @@ val mainClass = "io.papermc.paperclip.Paperclip"
 val agentClass = "io.papermc.paperclip.Agent"
 
 tasks.jar {
-    val java8Jar = project(":java8").tasks.named("shadowJar")
+    val java6Jar = project(":java6").tasks.named("jar")
     val java9Jar = project(":java9").tasks.named("jar")
-    dependsOn(java8Jar, java9Jar)
+    val java16Jar = project(":java16").tasks.named("shadowJar")
+    dependsOn(java6Jar, java9Jar, java16Jar)
 
-    from(zipTree(java8Jar.map { it.outputs.files.singleFile }))
+    from(zipTree(java6Jar.map { it.outputs.files.singleFile }))
     from(zipTree(java9Jar.map { it.outputs.files.singleFile })) {
         exclude("**/META-INF/**")
         into("META-INF/versions/9")
+    }
+    from(zipTree(java16Jar.map { it.outputs.files.singleFile })) {
+        exclude("**/META-INF/**")
+        into("META-INF/versions/16")
     }
 
     manifest {
@@ -49,14 +42,19 @@ tasks.jar {
 }
 
 val sourcesJar by tasks.registering(Jar::class) {
-    val java8Sources = project(":java8").tasks.named("sourcesJar")
+    val java6Sources = project(":java6").tasks.named("sourcesJar")
     val java9Sources = project(":java9").tasks.named("sourcesJar")
-    dependsOn(java8Sources, java9Sources)
+    val java16Sources = project(":java16").tasks.named("sourcesJar")
+    dependsOn(java6Sources, java9Sources, java16Sources)
 
-    from(zipTree(java8Sources.map { it.outputs.files.singleFile }))
+    from(zipTree(java6Sources.map { it.outputs.files.singleFile }))
     from(zipTree(java9Sources.map { it.outputs.files.singleFile })) {
         exclude("**/META-INF/**")
         into("META-INF/versions/9")
+    }
+    from(zipTree(java16Sources.map { it.outputs.files.singleFile })) {
+        exclude("**/META-INF/**")
+        into("META-INF/versions/16")
     }
 
     archiveClassifier.set("sources")
@@ -123,7 +121,7 @@ publishing {
 
             maven(url) {
                 credentials(PasswordCredentials::class)
-                name = "demonwav"
+                name = "paper"
             }
         }
     }

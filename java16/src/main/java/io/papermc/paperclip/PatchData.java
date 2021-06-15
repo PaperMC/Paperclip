@@ -16,14 +16,14 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Properties;
 
-final class PatchData {
-    final URL patchFile;
-    final URL originalUrl;
-    final byte[] originalHash;
-    final byte[] patchedHash;
-    final String version;
-
-    private PatchData(final Properties prop) {
+record PatchData(
+    URL patchFile,
+    URL originalUrl,
+    byte[] originalHash,
+    byte[] patchedHash,
+    String version
+) {
+    private static PatchData create(final Properties prop) {
         final String patch = prop.getProperty("patch");
         // First try and parse the patch as a uri
         URL patchFile = PatchData.class.getResource("/" + patch);
@@ -38,15 +38,21 @@ final class PatchData {
         if (patchFile == null) {
             throw new IllegalArgumentException("Couldn't find " + patch);
         }
-        this.patchFile = patchFile;
+
+        final URL originalUrl;
         try {
-            this.originalUrl = new URL(prop.getProperty("sourceUrl"));
+            originalUrl = new URL(prop.getProperty("sourceUrl"));
         } catch (final MalformedURLException e) {
             throw new IllegalArgumentException("Invalid URL", e);
         }
-        this.originalHash = fromHex(prop.getProperty("originalHash"));
-        this.patchedHash = fromHex(prop.getProperty("patchedHash"));
-        this.version = prop.getProperty("version");
+
+        return new PatchData(
+            patchFile,
+            originalUrl,
+            fromHex(prop.getProperty("originalHash")),
+            fromHex(prop.getProperty("patchedHash")),
+            prop.getProperty("version")
+        );
     }
 
     static PatchData parse(final Reader defaults, final Reader optional) throws IOException {
@@ -57,7 +63,7 @@ final class PatchData {
             if (optional != null) {
                 props.load(optional);
             }
-            return new PatchData(props);
+            return PatchData.create(props);
         } catch (final IOException e) {
             throw e;
         } catch (final Exception e) {
