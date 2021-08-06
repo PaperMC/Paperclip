@@ -269,7 +269,8 @@ public final class Paperclip {
                 System.err.println("No Paper pom file could be found.");
                 System.exit(1);
             }
-            Process installProcess = new ProcessBuilder(mavenCommand, "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath)
+
+            final Process installProcess = new ProcessBuilder(mavenCommand, "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath)
                 .redirectError(Redirect.INHERIT)
                 .start();
             if (installProcess.waitFor() != 0) {
