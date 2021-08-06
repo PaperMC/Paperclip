@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.lang.ProcessBuilder.Redirect;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.channels.Channels;
@@ -268,8 +269,10 @@ public final class Paperclip {
                 System.err.println("No Paper pom file could be found.");
                 System.exit(1);
             }
-
-            if (new ProcessBuilder(mavenCommand, "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath).start().waitFor() != 0) {
+            Process installProcess = new ProcessBuilder(mavenCommand, "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath)
+                .redirectError(Redirect.INHERIT)
+                .start();
+            if (installProcess.waitFor() != 0) {
                 // Error! Could not install the file.
                 System.err.println("Could not install the Paper file.");
                 return;
