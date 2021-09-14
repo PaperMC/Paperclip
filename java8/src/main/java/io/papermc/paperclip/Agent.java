@@ -9,6 +9,7 @@
 
 package io.papermc.paperclip;
 
+import java.lang.instrument.Instrumentation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -17,6 +18,10 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 
 public final class Agent {
+
+    public static void premain(final String agentArgs, final Instrumentation inst) {
+        // noop - if this is called on Java 8 we just ignore it
+    }
 
     static void addToClassPath(final Path paperJar) {
         final ClassLoader loader = ClassLoader.getSystemClassLoader();
