@@ -20,6 +20,11 @@ import java.util.Map;
 public final class Paperclip {
 
     public static void main(final String[] args) {
+        if (Path.of("").toAbsolutePath().toString().contains("!")) {
+            System.err.println("Paperclip may not run in a directory containing '!'. Please rename the affected folder.");
+            System.exit(1);
+        }
+
         final URL[] classpathUrls = setupClasspath();
 
         final ClassLoader parentClassLoader = Paperclip.class.getClassLoader().getParent();
