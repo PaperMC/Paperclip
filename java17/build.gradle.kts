@@ -5,14 +5,14 @@ plugins {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(16))
+        languageVersion.set(JavaLanguageVersion.of(17))
     }
 
     withSourcesJar()
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(16)
+    options.release.set(17)
 }
 
 repositories {

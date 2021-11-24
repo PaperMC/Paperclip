@@ -18,17 +18,17 @@ val agentClass = "io.papermc.paperclip.Agent"
 tasks.jar {
     val java6Jar = project(":java6").tasks.named("jar")
     val java9Jar = project(":java9").tasks.named("jar")
-    val java16Jar = project(":java16").tasks.named("shadowJar")
-    dependsOn(java6Jar, java9Jar, java16Jar)
+    val java17Jar = project(":java17").tasks.named("shadowJar")
+    dependsOn(java6Jar, java9Jar, java17Jar)
 
     from(zipTree(java6Jar.map { it.outputs.files.singleFile }))
     from(zipTree(java9Jar.map { it.outputs.files.singleFile })) {
         exclude("**/META-INF/**")
         into("META-INF/versions/9")
     }
-    from(zipTree(java16Jar.map { it.outputs.files.singleFile })) {
+    from(zipTree(java17Jar.map { it.outputs.files.singleFile })) {
         exclude("**/META-INF/**")
-        into("META-INF/versions/16")
+        into("META-INF/versions/17")
     }
 
     manifest {
@@ -44,17 +44,17 @@ tasks.jar {
 val sourcesJar by tasks.registering(Jar::class) {
     val java6Sources = project(":java6").tasks.named("sourcesJar")
     val java9Sources = project(":java9").tasks.named("sourcesJar")
-    val java16Sources = project(":java16").tasks.named("sourcesJar")
-    dependsOn(java6Sources, java9Sources, java16Sources)
+    val java17Sources = project(":java17").tasks.named("sourcesJar")
+    dependsOn(java6Sources, java9Sources, java17Sources)
 
     from(zipTree(java6Sources.map { it.outputs.files.singleFile }))
     from(zipTree(java9Sources.map { it.outputs.files.singleFile })) {
         exclude("**/META-INF/**")
         into("META-INF/versions/9")
     }
-    from(zipTree(java16Sources.map { it.outputs.files.singleFile })) {
+    from(zipTree(java17Sources.map { it.outputs.files.singleFile })) {
         exclude("**/META-INF/**")
-        into("META-INF/versions/16")
+        into("META-INF/versions/17")
     }
 
     archiveClassifier.set("sources")
