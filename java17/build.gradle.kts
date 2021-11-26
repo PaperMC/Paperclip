@@ -20,7 +20,6 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":java9"))
     implementation("io.sigpipe:jbsdiff:1.0")
 }
 
@@ -30,7 +29,6 @@ tasks.shadowJar {
         relocate(pack, "$prefix.$pack")
     }
 
-    dependencies {
-        exclude(project(":java9"))
-    }
+    exclude("META-INF/LICENSE.txt")
+    exclude("META-INF/NOTICE.txt")
 }

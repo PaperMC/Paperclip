@@ -12,50 +12,42 @@ subprojects {
     }
 }
 
-val mainClass = "io.papermc.paperclip.Paperclip"
-val agentClass = "io.papermc.paperclip.Agent"
+val mainClass = "io.papermc.paperclip.Main"
 
 tasks.jar {
     val java6Jar = project(":java6").tasks.named("jar")
-    val java9Jar = project(":java9").tasks.named("jar")
     val java17Jar = project(":java17").tasks.named("shadowJar")
-    dependsOn(java6Jar, java9Jar, java17Jar)
+    dependsOn(java6Jar, java17Jar)
 
     from(zipTree(java6Jar.map { it.outputs.files.singleFile }))
-    from(zipTree(java9Jar.map { it.outputs.files.singleFile })) {
-        exclude("**/META-INF/**")
-        into("META-INF/versions/9")
-    }
-    from(zipTree(java17Jar.map { it.outputs.files.singleFile })) {
-        exclude("**/META-INF/**")
-        into("META-INF/versions/17")
-    }
+    from(zipTree(java17Jar.map { it.outputs.files.singleFile }))
 
     manifest {
         attributes(
-            "Main-Class" to mainClass,
-            "Multi-Release" to "true",
-            "Launcher-Agent-Class" to agentClass,
-            "Premain-Class" to agentClass
+            "Main-Class" to mainClass
         )
+    }
+
+    from(file("license.txt")) {
+        into("META-INF/license")
+        rename { "paperclip-LICENSE.txt" }
+    }
+    rename { name ->
+        if (name.endsWith("-LICENSE.txt")) {
+            "META-INF/license/$name"
+        } else {
+            name
+        }
     }
 }
 
 val sourcesJar by tasks.registering(Jar::class) {
     val java6Sources = project(":java6").tasks.named("sourcesJar")
-    val java9Sources = project(":java9").tasks.named("sourcesJar")
     val java17Sources = project(":java17").tasks.named("sourcesJar")
-    dependsOn(java6Sources, java9Sources, java17Sources)
+    dependsOn(java6Sources, java17Sources)
 
     from(zipTree(java6Sources.map { it.outputs.files.singleFile }))
-    from(zipTree(java9Sources.map { it.outputs.files.singleFile })) {
-        exclude("**/META-INF/**")
-        into("META-INF/versions/9")
-    }
-    from(zipTree(java17Sources.map { it.outputs.files.singleFile })) {
-        exclude("**/META-INF/**")
-        into("META-INF/versions/17")
-    }
+    from(zipTree(java17Sources.map { it.outputs.files.singleFile }))
 
     archiveClassifier.set("sources")
 }

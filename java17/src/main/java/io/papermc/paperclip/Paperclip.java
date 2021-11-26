@@ -1,330 +1,213 @@
 package io.papermc.paperclip;
 
-import io.sigpipe.jbsdiff.InvalidHeaderException;
-import io.sigpipe.jbsdiff.Patch;
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.Reader;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.file.Files;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.jar.JarFile;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-import org.apache.commons.compress.compressors.CompressorException;
-
-import static java.nio.file.StandardOpenOption.CREATE;
-import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static java.nio.file.StandardOpenOption.WRITE;
+import java.util.HashMap;
+import java.util.Map;
 
 public final class Paperclip {
 
     public static void main(final String[] args) {
-        final Method mainMethod;
-        {
-            final Path paperJar = setupEnv();
-            final String main = getMainClass(paperJar);
-            mainMethod = getMainMethod(paperJar, main);
-        }
+        final URL[] classpathUrls = setupClasspath();
 
-        // By making sure there are no other variables in scope when we run mainMethod.invoke we allow the JVM to
-        // GC any objects allocated during the downloading + patching process, minimizing paperclip's overhead as
-        // much as possible
-        try {
-            mainMethod.invoke(null, new Object[] {args});
-        } catch (final IllegalAccessException | InvocationTargetException e) {
-            System.err.println("Error while running patched jar");
-            e.printStackTrace();
-            System.exit(1);
-        }
+        final ClassLoader parentClassLoader = Paperclip.class.getClassLoader().getParent();
+        final URLClassLoader classLoader = new URLClassLoader(classpathUrls, parentClassLoader);
+
+        final String mainClassName = findMainClass();
+        System.out.println("Starting " + mainClassName);
+
+        final Thread runThread = new Thread(() -> {
+            try {
+                final Class<?> mainClass = Class.forName(mainClassName, true, classLoader);
+                final MethodHandle mainHandle = MethodHandles.lookup()
+                    .findStatic(mainClass, "main", MethodType.methodType(void.class, String[].class))
+                    .asFixedArity();
+                mainHandle.invoke((Object) args);
+            } catch (final Throwable t) {
+                throw Util.sneakyThrow(t);
+            }
+        }, "ServerMain");
+        runThread.setContextClassLoader(classLoader);
+        runThread.start();
     }
 
-    private static Path setupEnv() {
-        final MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("SHA-256");
-        } catch (final NoSuchAlgorithmException e) {
-            System.err.println("Could not create hashing instance");
-            e.printStackTrace();
-            System.exit(1);
-            throw new InternalError();
+    private static URL[] setupClasspath() {
+        final var repoDir = Path.of(System.getProperty("bundlerRepoDir", ""));
+
+        final PatchData[] patches = findPatches();
+        final DownloadContext downloadContext = findDownloadContext();
+        if (patches != null && downloadContext == null) {
+            throw new IllegalArgumentException("patches.list file found without a corresponding original-url file");
         }
 
-        final PatchData patchData;
-        try (
-            final InputStream defaultsInput = Objects.requireNonNull(
-                Paperclip.class.getResourceAsStream("/patch.properties"),
-                "No patch.properties file found inside paperclip jar"
-            );
-            final Reader defaultsReader = new BufferedReader(new InputStreamReader(defaultsInput));
-            final Reader optionalReader = getConfig()
-        ) {
-            patchData = PatchData.parse(defaultsReader, optionalReader);
-        } catch (final IOException | IllegalArgumentException e) {
-            if (e instanceof IOException) {
-                System.err.println("Error reading patch file");
-            } else {
-                System.err.println("Invalid patch file");
+        final Path baseFile;
+        if (downloadContext != null) {
+            try {
+                downloadContext.download(repoDir);
+            } catch (final IOException e) {
+                throw Util.fail("Failed to download original jar", e);
             }
-            e.printStackTrace();
-            System.exit(1);
-            throw new InternalError();
+            baseFile = downloadContext.getOutputFile(repoDir);
+        } else {
+            baseFile = null;
         }
 
-        final Path paperJar = checkPaperJar(digest, patchData);
+        final Map<String, URL> classpathUrls = extractAndApplyPatches(baseFile, patches, repoDir);
 
         // Exit if user has set `paperclip.patchonly` system property to `true`
         if (Boolean.getBoolean("paperclip.patchonly")) {
             System.exit(0);
         }
 
-        // Install it to the local maven repository if `paperclip.install` is `true`
-        if (Boolean.getBoolean("paperclip.install")) {
-            mavenInstall(paperJar);
-            System.exit(0);
-        }
-
-        return paperJar;
+        return classpathUrls.values().toArray(new URL[0]);
     }
 
-    private static Path checkPaperJar(
-        final MessageDigest digest,
-        final PatchData patchData
-    ) {
-        final Path cache = Paths.get("cache");
-        final Path paperJar = cache.resolve("patched_" + patchData.version() + ".jar");
-
-        if (!isJarInvalid(digest, paperJar, patchData.patchedHash())) {
-            return paperJar;
+    private static PatchData[] findPatches() {
+        final InputStream patchListStream = Paperclip.class.getResourceAsStream("/META-INF/patches.list");
+        if (patchListStream == null) {
+            return null;
         }
 
-        final Path vanillaJar = checkVanillaJar(digest, patchData, cache);
+        try (patchListStream) {
+            return PatchData.parse(new BufferedReader(new InputStreamReader(patchListStream)));
+        } catch (final IOException e) {
+            throw Util.fail("Failed to read patches.list file", e);
+        }
+    }
 
-        if (Files.exists(paperJar)) {
+    private static DownloadContext findDownloadContext() {
+        final String line;
+        try {
+            line = Util.readResourceText("/META-INF/download-context");
+        } catch (final IOException e) {
+            throw Util.fail("Failed to read download-context file", e);
+        }
+
+        return DownloadContext.parseLine(line);
+    }
+
+    private static FileEntry[] findVersionEntries() {
+        return findFileEntries("versions.list");
+    }
+    private static FileEntry[] findLibraryEntries() {
+        return findFileEntries("libraries.list");
+    }
+    private static FileEntry[] findFileEntries(final String fileName) {
+        final InputStream libListStream = Paperclip.class.getResourceAsStream("/META-INF/" + fileName);
+        if (libListStream == null) {
+            return null;
+        }
+
+        try (libListStream) {
+            return FileEntry.parse(new BufferedReader(new InputStreamReader(libListStream)));
+        } catch (final IOException e) {
+            throw Util.fail("Failed to read " + fileName + " file", e);
+        }
+    }
+
+    private static String findMainClass() {
+        final String mainClassName = System.getProperty("bundlerMainClass");
+        if (mainClassName != null) {
+            return mainClassName;
+        }
+
+        try {
+            return Util.readResourceText("/META-INF/main-class");
+        } catch (final IOException e) {
+            throw Util.fail("Failed to read main-class file", e);
+        }
+    }
+
+    private static Map<String, URL> extractAndApplyPatches(final Path originalJar, final PatchData[] patches, final Path repoDir) {
+        if (originalJar == null && patches != null) {
+            throw new IllegalArgumentException("Patch data found without patch target");
+        }
+
+        // First extract any non-patch files
+        final Map<String, URL> urls = extractFiles(originalJar, repoDir);
+
+        // Next apply any patches that we have
+        applyPatches(urls, patches, repoDir);
+
+        return urls;
+    }
+
+    private static Map<String, URL> extractFiles(final Path originalJar, final Path repoDir) {
+        final var urls = new HashMap<String, URL>();
+
+        try {
+            final FileSystem originalJarFs;
+            if (originalJar == null) {
+                originalJarFs = null;
+            } else {
+                originalJarFs = FileSystems.newFileSystem(originalJar);
+            }
+
             try {
-                Files.delete(paperJar);
-            } catch (final IOException e) {
-                System.err.println("Failed to delete invalid jar " + paperJar.toAbsolutePath());
-                e.printStackTrace();
-                System.exit(1);
-            }
-        }
+                final Path originalRootDir;
+                if (originalJarFs == null) {
+                    originalRootDir = null;
+                } else {
+                    originalRootDir = originalJarFs.getPath("/");
+                }
 
-        System.out.println("Patching vanilla jar...");
-        final byte[] vanillaJarBytes;
-        final byte[] patch;
-        try {
-            vanillaJarBytes = readBytes(vanillaJar);
-            patch = readFully(patchData.patchFile().openStream());
+                final FileEntry[] versionEntries = findVersionEntries();
+                extractEntries(urls, originalRootDir, repoDir, versionEntries, "versions");
+
+                final FileEntry[] libraryEntries = findLibraryEntries();
+                extractEntries(urls, originalRootDir, repoDir, libraryEntries, "libraries");
+            } finally {
+                if (originalJarFs != null) {
+                    originalJarFs.close();
+                }
+            }
         } catch (final IOException e) {
-            System.err.println("Failed to read vanilla jar and patch file");
-            e.printStackTrace();
-            System.exit(1);
-            throw new InternalError();
+            throw Util.fail("Failed to extract jar files", e);
         }
 
-        // Patch the jar to create the final jar to run
-        try (
-            final OutputStream jarOutput =
-                new BufferedOutputStream(Files.newOutputStream(paperJar, CREATE, WRITE, TRUNCATE_EXISTING))
-        ) {
-            Patch.patch(vanillaJarBytes, patch, jarOutput);
-        } catch (final CompressorException | InvalidHeaderException | IOException e) {
-            System.err.println("Failed to patch vanilla jar");
-            e.printStackTrace();
-            System.exit(1);
-        }
-
-        // Only continue from here if the patched jar is correct
-        if (isJarInvalid(digest, paperJar, patchData.patchedHash())) {
-            System.err.println("Failed to patch vanilla jar, output patched jar is still not valid");
-            System.exit(1);
-        }
-
-        return paperJar;
+        return urls;
     }
 
-    private static Path checkVanillaJar(
-        final MessageDigest digest,
-        final PatchData patchData,
-        final Path cache
-    ) {
-        final Path vanillaJar = cache.resolve("mojang_" + patchData.version() + ".jar");
-        if (!isJarInvalid(digest, vanillaJar, patchData.originalHash())) {
-            return vanillaJar;
-        }
-
-        System.out.println("Downloading vanilla jar...");
-        try {
-            if (!Files.isDirectory(cache)) {
-                Files.createDirectories(cache);
-            }
-            Files.deleteIfExists(vanillaJar);
-        } catch (final IOException e) {
-            System.err.println("Failed to setup cache directory");
-            e.printStackTrace();
-            System.exit(1);
-        }
-
-        try (
-            final ReadableByteChannel source = Channels.newChannel(patchData.originalUrl().openStream());
-            final FileChannel fileChannel = FileChannel.open(vanillaJar, CREATE, WRITE, TRUNCATE_EXISTING)
-        ) {
-            fileChannel.transferFrom(source, 0, Long.MAX_VALUE);
-        } catch (final IOException e) {
-            System.err.println("Failed to download vanilla jar");
-            e.printStackTrace();
-            System.exit(1);
-        }
-
-        // Only continue from here if the downloaded jar is correct
-        if (isJarInvalid(digest, vanillaJar, patchData.originalHash())) {
-            System.err.println("Downloaded vanilla jar is not valid");
-            System.exit(1);
-        }
-
-        return vanillaJar;
-    }
-
-    private static String getMainClass(final Path paperJar) {
-        try (final JarFile jarFile = new JarFile(paperJar.toFile())) {
-            return jarFile.getManifest().getMainAttributes().getValue("Main-Class");
-        } catch (final IOException e) {
-            System.err.println("Error reading from patched jar");
-            e.printStackTrace();
-            System.exit(1);
-            throw new InternalError();
-        }
-    }
-
-    private static Method getMainMethod(final Path paperJar, final String mainClass) {
-        Agent.addToClassPath(paperJar);
-        try {
-            final Class<?> cls = Class.forName(mainClass, true, ClassLoader.getSystemClassLoader());
-            return cls.getMethod("main", String[].class);
-        } catch (final NoSuchMethodException | ClassNotFoundException e) {
-            System.err.println("Failed to find main method in patched jar");
-            e.printStackTrace();
-            System.exit(1);
-            throw new InternalError();
-        }
-    }
-
-    private static Path extractPom(Path paperJar) throws IOException {
-        try (final ZipFile zipFile = new ZipFile(paperJar.toFile())) {
-            Path pomPath = Paths.get("paper.xml");
-
-            ZipEntry pomEntry = zipFile.getEntry("META-INF/maven/io.papermc.paper/paper/pom.xml");
-
-            if (pomEntry == null) {
-                pomEntry = zipFile.getEntry("META-INF/maven/com.destroystokyo.paper/paper/pom.xml");
-            }
-            if (pomEntry == null) {
-                System.err.println("No Paper pom file could be found.");
-                return null;
-            }
-            try (final InputStream pom = zipFile.getInputStream(pomEntry)) {
-                Files.copy(pom, pomPath, StandardCopyOption.REPLACE_EXISTING);
-                pomPath.toFile().deleteOnExit();
-            }
-
-            return pomPath;
-        }
-    }
-
-    private static void mavenInstall(Path paperJar) {
-        // On Windows we need to use "mvn.cmd" instead of "mvn"
-        final String mavenCommand = System.getProperty("os.name").toLowerCase(Locale.ENGLISH).contains("windows") ? "mvn.cmd" : "mvn";
-        try {
-            if (new ProcessBuilder(mavenCommand, "-version").start().waitFor() != 0) {
-                // Error! It's either not on the path, or something went terribly wrong.
-                System.err.println("Maven must be installed and on your PATH.");
-                System.exit(1);
-            }
-        } catch (final IOException | InterruptedException ex) {
-            System.err.println("Maven must be installed and on your PATH.");
-            ex.printStackTrace();
-            System.exit(1);
-        }
-
-        try {
-            Path pomPath = extractPom(paperJar);
-            if (pomPath == null) {
-                System.err.println("No Paper pom file could be found.");
-                System.exit(1);
-            }
-
-            if (new ProcessBuilder(mavenCommand, "install:install-file", "-Dfile=" + paperJar, "-DpomFile=" + pomPath).start().waitFor() != 0) {
-                // Error! Could not install the file.
-                System.err.println("Could not install the Paper file.");
-                return;
-            }
-        } catch (final IOException | InterruptedException ex) {
-            System.err.println("Could not install the Paper file.");
-            ex.printStackTrace();
+    private static void extractEntries(
+        final Map<String, URL> urls,
+        final Path originalRootDir,
+        final Path repoDir,
+        final FileEntry[] entries,
+        final String targetName
+    ) throws IOException {
+        if (entries == null) {
             return;
         }
 
-        System.out.println("Installed jar into local maven repository.");
-    }
+        final String targetPath = "/META-INF/" + targetName;
+        final Path targetDir = repoDir.resolve(targetName);
 
-    private static Reader getConfig() throws IOException {
-        final Path customPatchInfo = Paths.get("paperclip.properties");
-        if (Files.exists(customPatchInfo)) {
-            return Files.newBufferedReader(customPatchInfo);
-        } else {
-            return null;
+        for (final FileEntry entry : entries) {
+            entry.extractFile(urls, originalRootDir, targetPath, targetDir);
         }
     }
 
-    private static byte[] readFully(final InputStream in) throws IOException {
-        try (in) {
-            // In a test this was 12 ms quicker than a ByteBuffer
-            // and for some reason that matters here.
-            byte[] buffer = new byte[16 * 1024];
-            int off = 0;
-            int read;
-            while ((read = in.read(buffer, off, buffer.length - off)) != -1) {
-                off += read;
-                if (off == buffer.length) {
-                    buffer = Arrays.copyOf(buffer, buffer.length * 2);
-                }
-            }
-            return Arrays.copyOfRange(buffer, 0, off);
+    private static void applyPatches(final Map<String, URL> urls, final PatchData[] patches, final Path repoDir) {
+        if (patches == null) {
+            return;
         }
-    }
 
-    private static byte[] readBytes(final Path file) {
         try {
-            return readFully(Files.newInputStream(file));
+            for (final PatchData patch : patches) {
+                patch.applyPatch(urls, repoDir);
+            }
         } catch (final IOException e) {
-            System.err.println("Failed to read all of the data from " + file.toAbsolutePath());
-            e.printStackTrace();
-            System.exit(1);
-            throw new InternalError();
+            throw Util.fail("Failed to apply patches", e);
         }
-    }
-
-    private static boolean isJarInvalid(final MessageDigest digest, final Path jar, final byte[] hash) {
-        if (Files.exists(jar)) {
-            final byte[] jarBytes = readBytes(jar);
-            return !Arrays.equals(hash, digest.digest(jarBytes));
-        }
-        return true;
     }
 }

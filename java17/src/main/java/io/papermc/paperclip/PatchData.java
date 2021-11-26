@@ -9,87 +9,132 @@
 
 package io.papermc.paperclip;
 
-import java.io.File;
+import io.sigpipe.jbsdiff.InvalidHeaderException;
+import io.sigpipe.jbsdiff.Patch;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.Reader;
-import java.net.MalformedURLException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URL;
-import java.util.Properties;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Map;
+import org.apache.commons.compress.compressors.CompressorException;
+
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 
 record PatchData(
-    URL patchFile,
-    URL originalUrl,
+    String location,
     byte[] originalHash,
-    byte[] patchedHash,
-    String version
+    byte[] patchHash,
+    byte[] outputHash,
+    String originalPath,
+    String patchPath,
+    String outputPath
 ) {
-    private static PatchData create(final Properties prop) {
-        final String patch = prop.getProperty("patch");
-        // First try and parse the patch as a uri
-        URL patchFile = PatchData.class.getResource("/" + patch);
-        {
-            final File tempFile = new File(patch);
-            if (tempFile.exists()) {
-                try {
-                    patchFile = tempFile.toURI().toURL();
-                } catch (final MalformedURLException ignored) {}
+
+    static PatchData[] parse(final BufferedReader reader) throws IOException {
+        var result = new PatchData[8];
+
+        int index = 0;
+        String line;
+        while ((line = reader.readLine()) != null) {
+            final PatchData data = parseLine(line);
+            if (data == null) {
+                continue;
             }
-        }
-        if (patchFile == null) {
-            throw new IllegalArgumentException("Couldn't find " + patch);
+
+            if (index == result.length) {
+                result = Arrays.copyOf(result, index * 2);
+            }
+            result[index++] = data;
         }
 
-        final URL originalUrl;
-        try {
-            originalUrl = new URL(prop.getProperty("sourceUrl"));
-        } catch (final MalformedURLException e) {
-            throw new IllegalArgumentException("Invalid URL", e);
+        if (index != result.length) {
+            return Arrays.copyOf(result, index);
+        } else {
+            return result;
+        }
+    }
+
+    private static PatchData parseLine(final String line) {
+        if (line.isBlank()) {
+            return null;
+        }
+        if (line.startsWith("#")) {
+            return null;
+        }
+
+        final var parts = line.split("\t");
+        if (parts.length != 7) {
+            throw new IllegalStateException("Invalid patch data line: " + line);
         }
 
         return new PatchData(
-            patchFile,
-            originalUrl,
-            fromHex(prop.getProperty("originalHash")),
-            fromHex(prop.getProperty("patchedHash")),
-            prop.getProperty("version")
+            parts[0],
+            Util.fromHex(parts[1]),
+            Util.fromHex(parts[2]),
+            Util.fromHex(parts[3]),
+            parts[4],
+            parts[5],
+            parts[6]
         );
     }
 
-    static PatchData parse(final Reader defaults, final Reader optional) throws IOException {
-        try {
-            final Properties defaultProps = new Properties();
-            defaultProps.load(defaults);
-            final Properties props = new Properties(defaultProps);
-            if (optional != null) {
-                props.load(optional);
+    void applyPatch(final Map<String, URL> urls, final Path repoDir) throws IOException {
+        final Path targetDir = repoDir.resolve(this.location);
+
+        final Path inputFile = targetDir.resolve(this.originalPath);
+        final Path outputFile = targetDir.resolve(this.outputPath);
+
+        // Short-cut if the patch is already applied
+        if (Files.exists(outputFile) && Util.isFileValid(outputFile, this.outputHash)) {
+            // For the classpath, use the patched file instead of the original
+            urls.put(this.originalPath, outputFile.toUri().toURL());
+            return;
+        }
+
+        // Verify input file is correct
+        if (Files.notExists(inputFile)) {
+            throw new IllegalStateException("Input file not found: " + inputFile);
+        }
+        if (!Util.isFileValid(inputFile, this.originalHash)) {
+            throw new IllegalStateException("Hash check of input file failed for " + inputFile);
+        }
+
+        // Get and verity patch data is correct
+        final InputStream patchStream = this.getClass().getResourceAsStream(this.patchPath);
+        if (patchStream == null) {
+            throw new IllegalStateException("Patch not found for file " + inputFile);
+        }
+        final byte[] patchBytes = Util.readFully(patchStream);
+        if (!Util.isDataValid(patchBytes, this.patchHash)) {
+            throw new IllegalStateException("Hash check of patch file failed for " + this.patchPath);
+        }
+
+        final byte[] originalBytes = Util.readBytes(inputFile);
+        try (
+            final OutputStream outStream =
+                new BufferedOutputStream(Files.newOutputStream(outputFile, CREATE, WRITE, TRUNCATE_EXISTING))
+        ) {
+            // Don't move this `catch` clause to the outer try-with-resources
+            // the Util.fail method never returns, so `close()` would never get called
+            try {
+                Patch.patch(originalBytes, patchBytes, outStream);
+            } catch (final CompressorException | InvalidHeaderException | IOException e) {
+                throw Util.fail("Failed to patch " + inputFile, e);
             }
-            return PatchData.create(props);
-        } catch (final IOException e) {
-            throw e;
-        } catch (final Exception e) {
-            throw new IllegalArgumentException("Invalid properties file", e);
         }
-    }
 
-    private static byte[] fromHex(final String s) {
-        if (s.length() % 2 != 0) {
-            throw new IllegalArgumentException("Hex " + s + " must be divisible by two");
+        if (!Util.isFileValid(outputFile, this.outputHash)) {
+            throw new IllegalStateException("Patch not applied correctly for " + this.outputPath);
         }
-        final byte[] bytes = new byte[s.length() / 2];
-        for (int i = 0; i < bytes.length; i++) {
-            final char left = s.charAt(i * 2);
-            final char right = s.charAt(i * 2 + 1);
-            final byte b = (byte) ((getValue(left) << 4) | (getValue(right) & 0xF));
-            bytes[i] = b;
-        }
-        return bytes;
-    }
 
-    private static int getValue(final char c) {
-        int i = Character.digit(c, 16);
-        if (i < 0) {
-            throw new IllegalArgumentException("Invalid hex char: " + c);
-        }
-        return i;
+        // For the classpath, use the patched file instead of the original
+        urls.put(this.originalPath, outputFile.toUri().toURL());
     }
 }

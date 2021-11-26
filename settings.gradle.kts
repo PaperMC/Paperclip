@@ -1,2 +1,2 @@
 rootProject.name = "paperclip"
-include("java6", "java9", "java17")
+include("java6", "java17")
