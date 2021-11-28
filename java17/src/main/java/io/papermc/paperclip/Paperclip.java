@@ -53,7 +53,7 @@ public final class Paperclip {
 
         final PatchEntry[] patches = findPatches();
         final DownloadContext downloadContext = findDownloadContext();
-        if (patches != null && downloadContext == null) {
+        if (patches.length > 0 && downloadContext == null) {
             throw new IllegalArgumentException("patches.list file found without a corresponding original-url file");
         }
 
@@ -91,7 +91,7 @@ public final class Paperclip {
     private static PatchEntry[] findPatches() {
         final InputStream patchListStream = Paperclip.class.getResourceAsStream("/META-INF/patches.list");
         if (patchListStream == null) {
-            return null;
+            return new PatchEntry[0];
         }
 
         try (patchListStream) {
@@ -145,7 +145,7 @@ public final class Paperclip {
     }
 
     private static Map<String, Map<String, URL>> extractAndApplyPatches(final Path originalJar, final PatchEntry[] patches, final Path repoDir) {
-        if (originalJar == null && patches != null) {
+        if (originalJar == null && patches.length > 0) {
             throw new IllegalArgumentException("Patch data found without patch target");
         }
 
@@ -224,7 +224,7 @@ public final class Paperclip {
         final Path originalJar,
         final Path repoDir
     ) {
-        if (patches == null) {
+        if (patches.length == 0) {
             return;
         }
         if (originalJar == null) {
