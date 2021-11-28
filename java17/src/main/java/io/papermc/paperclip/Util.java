@@ -51,7 +51,13 @@ class Util {
     }
 
     static String readResourceText(final String path) throws IOException {
-        final InputStream stream = Util.class.getResourceAsStream(path);
+        final String p;
+        if (path.startsWith("/")) {
+            p = path;
+        } else {
+            p = "/" + path;
+        }
+        final InputStream stream = Util.class.getResourceAsStream(p);
         if (stream == null) {
             return null;
         }
@@ -114,5 +120,12 @@ class Util {
     @SuppressWarnings("unchecked")
     static <X extends Throwable> RuntimeException sneakyThrow(final Throwable ex) throws X {
         throw (X) ex;
+    }
+
+    static String endingSlash(final String dir) {
+        if (dir.endsWith("/")) {
+            return dir;
+        }
+        return dir + "/";
     }
 }

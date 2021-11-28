@@ -12,6 +12,8 @@ import java.net.URLClassLoader;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,7 +46,7 @@ public final class Paperclip {
     private static URL[] setupClasspath() {
         final var repoDir = Path.of(System.getProperty("bundlerRepoDir", ""));
 
-        final PatchData[] patches = findPatches();
+        final PatchEntry[] patches = findPatches();
         final DownloadContext downloadContext = findDownloadContext();
         if (patches != null && downloadContext == null) {
             throw new IllegalArgumentException("patches.list file found without a corresponding original-url file");
@@ -62,24 +64,33 @@ public final class Paperclip {
             baseFile = null;
         }
 
-        final Map<String, URL> classpathUrls = extractAndApplyPatches(baseFile, patches, repoDir);
+        final Map<String, Map<String, URL>> classpathUrls = extractAndApplyPatches(baseFile, patches, repoDir);
 
         // Exit if user has set `paperclip.patchonly` system property to `true`
         if (Boolean.getBoolean("paperclip.patchonly")) {
             System.exit(0);
         }
 
-        return classpathUrls.values().toArray(new URL[0]);
+        // Keep versions and libraries separate as the versions must come first
+        // This is due to change we make to some library classes inside the versions jar
+        final Collection<URL> versionUrls = classpathUrls.get("versions").values();
+        final Collection<URL> libraryUrls = classpathUrls.get("libraries").values();
+
+        final URL[] emptyArray = new URL[0];
+        final URL[] urls = new URL[versionUrls.size() + libraryUrls.size()];
+        System.arraycopy(versionUrls.toArray(emptyArray), 0, urls, 0, versionUrls.size());
+        System.arraycopy(libraryUrls.toArray(emptyArray), 0, urls, versionUrls.size(), libraryUrls.size());
+        return urls;
     }
 
-    private static PatchData[] findPatches() {
+    private static PatchEntry[] findPatches() {
         final InputStream patchListStream = Paperclip.class.getResourceAsStream("/META-INF/patches.list");
         if (patchListStream == null) {
             return null;
         }
 
         try (patchListStream) {
-            return PatchData.parse(new BufferedReader(new InputStreamReader(patchListStream)));
+            return PatchEntry.parse(new BufferedReader(new InputStreamReader(patchListStream)));
         } catch (final IOException e) {
             throw Util.fail("Failed to read patches.list file", e);
         }
@@ -128,22 +139,22 @@ public final class Paperclip {
         }
     }
 
-    private static Map<String, URL> extractAndApplyPatches(final Path originalJar, final PatchData[] patches, final Path repoDir) {
+    private static Map<String, Map<String, URL>> extractAndApplyPatches(final Path originalJar, final PatchEntry[] patches, final Path repoDir) {
         if (originalJar == null && patches != null) {
             throw new IllegalArgumentException("Patch data found without patch target");
         }
 
         // First extract any non-patch files
-        final Map<String, URL> urls = extractFiles(originalJar, repoDir);
+        final Map<String, Map<String, URL>> urls = extractFiles(patches, originalJar, repoDir);
 
         // Next apply any patches that we have
-        applyPatches(urls, patches, repoDir);
+        applyPatches(urls, patches, originalJar, repoDir);
 
         return urls;
     }
 
-    private static Map<String, URL> extractFiles(final Path originalJar, final Path repoDir) {
-        final var urls = new HashMap<String, URL>();
+    private static Map<String, Map<String, URL>> extractFiles(final PatchEntry[] patches, final Path originalJar, final Path repoDir) {
+        final var urls = new HashMap<String, Map<String, URL>>();
 
         try {
             final FileSystem originalJarFs;
@@ -161,11 +172,15 @@ public final class Paperclip {
                     originalRootDir = originalJarFs.getPath("/");
                 }
 
+                final var versionsMap = new HashMap<String, URL>();
+                urls.putIfAbsent("versions", versionsMap);
                 final FileEntry[] versionEntries = findVersionEntries();
-                extractEntries(urls, originalRootDir, repoDir, versionEntries, "versions");
+                extractEntries(versionsMap, patches, originalRootDir, repoDir, versionEntries, "versions");
 
                 final FileEntry[] libraryEntries = findLibraryEntries();
-                extractEntries(urls, originalRootDir, repoDir, libraryEntries, "libraries");
+                final var librariesMap = new HashMap<String, URL>();
+                urls.putIfAbsent("libraries", librariesMap);
+                extractEntries(librariesMap, patches, originalRootDir, repoDir, libraryEntries, "libraries");
             } finally {
                 if (originalJarFs != null) {
                     originalJarFs.close();
@@ -180,6 +195,7 @@ public final class Paperclip {
 
     private static void extractEntries(
         final Map<String, URL> urls,
+        final PatchEntry[] patches,
         final Path originalRootDir,
         final Path repoDir,
         final FileEntry[] entries,
@@ -193,18 +209,28 @@ public final class Paperclip {
         final Path targetDir = repoDir.resolve(targetName);
 
         for (final FileEntry entry : entries) {
-            entry.extractFile(urls, originalRootDir, targetPath, targetDir);
+            entry.extractFile(urls, patches, targetName, originalRootDir, targetPath, targetDir);
         }
     }
 
-    private static void applyPatches(final Map<String, URL> urls, final PatchData[] patches, final Path repoDir) {
+    private static void applyPatches(
+        final Map<String, Map<String, URL>> urls,
+        final PatchEntry[] patches,
+        final Path originalJar,
+        final Path repoDir
+    ) {
         if (patches == null) {
             return;
         }
+        if (originalJar == null) {
+            throw new IllegalStateException("Patches provided without patch target");
+        }
 
-        try {
-            for (final PatchData patch : patches) {
-                patch.applyPatch(urls, repoDir);
+        try (final FileSystem originalFs = FileSystems.newFileSystem(originalJar)) {
+            final Path originalRootDir = originalFs.getPath("/");
+
+            for (final PatchEntry patch : patches) {
+                patch.applyPatch(urls, originalRootDir, repoDir);
             }
         } catch (final IOException e) {
             throw Util.fail("Failed to apply patches", e);

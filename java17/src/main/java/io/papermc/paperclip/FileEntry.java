@@ -49,18 +49,27 @@ record FileEntry(byte[] hash, String id, String path) {
 
     void extractFile(
         final Map<String, URL> urls,
+        final PatchEntry[] patches,
+        final String targetName,
         final Path originalRootDir,
         final String baseDir,
         final Path outputDir
     ) throws IOException {
+        for (final PatchEntry patch : patches) {
+            if (patch.location().equals(targetName) && patch.outputPath().equals(this.path)) {
+                // This file will be created from a patch
+                return;
+            }
+        }
+
         final Path outputFile = outputDir.resolve(this.path);
         if (Files.exists(outputFile) && Util.isFileValid(outputFile, this.hash)) {
             urls.put(this.path, outputFile.toUri().toURL());
             return;
         }
 
-        final String filePath = endingSlash(baseDir) + this.path;
-        InputStream fileStream = this.getClass().getResourceAsStream(filePath);
+        final String filePath = Util.endingSlash(baseDir) + this.path;
+        InputStream fileStream = FileEntry.class.getResourceAsStream(filePath);
         if (fileStream == null) {
             // This file is not in our jar, but may be in the original
             if (originalRootDir == null) {
@@ -93,12 +102,5 @@ record FileEntry(byte[] hash, String id, String path) {
         }
 
         urls.put(this.path, outputFile.toUri().toURL());
-    }
-
-    private static String endingSlash(final String dir) {
-        if (dir.endsWith("/")) {
-            return dir;
-        }
-        return dir + "/";
     }
 }

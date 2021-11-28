@@ -27,7 +27,7 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 
-record PatchData(
+record PatchEntry(
     String location,
     byte[] originalHash,
     byte[] patchHash,
@@ -36,14 +36,15 @@ record PatchData(
     String patchPath,
     String outputPath
 ) {
+    private static boolean announced = false;
 
-    static PatchData[] parse(final BufferedReader reader) throws IOException {
-        var result = new PatchData[8];
+    static PatchEntry[] parse(final BufferedReader reader) throws IOException {
+        var result = new PatchEntry[8];
 
         int index = 0;
         String line;
         while ((line = reader.readLine()) != null) {
-            final PatchData data = parseLine(line);
+            final PatchEntry data = parseLine(line);
             if (data == null) {
                 continue;
             }
@@ -61,7 +62,7 @@ record PatchData(
         }
     }
 
-    private static PatchData parseLine(final String line) {
+    private static PatchEntry parseLine(final String line) {
         if (line.isBlank()) {
             return null;
         }
@@ -74,7 +75,7 @@ record PatchData(
             throw new IllegalStateException("Invalid patch data line: " + line);
         }
 
-        return new PatchData(
+        return new PatchEntry(
             parts[0],
             Util.fromHex(parts[1]),
             Util.fromHex(parts[2]),
@@ -85,17 +86,23 @@ record PatchData(
         );
     }
 
-    void applyPatch(final Map<String, URL> urls, final Path repoDir) throws IOException {
+    void applyPatch(final Map<String, Map<String, URL>> urls, final Path originalRootDir, final Path repoDir) throws IOException {
+        final Path inputDir = originalRootDir.resolve("META-INF").resolve(this.location);
         final Path targetDir = repoDir.resolve(this.location);
 
-        final Path inputFile = targetDir.resolve(this.originalPath);
+        final Path inputFile = inputDir.resolve(this.originalPath);
         final Path outputFile = targetDir.resolve(this.outputPath);
 
         // Short-cut if the patch is already applied
         if (Files.exists(outputFile) && Util.isFileValid(outputFile, this.outputHash)) {
             // For the classpath, use the patched file instead of the original
-            urls.put(this.originalPath, outputFile.toUri().toURL());
+            urls.get(this.location).put(this.originalPath, outputFile.toUri().toURL());
             return;
+        }
+
+        if (!announced) {
+            System.out.println("Applying patches");
+            announced = true;
         }
 
         // Verify input file is correct
@@ -107,27 +114,29 @@ record PatchData(
         }
 
         // Get and verity patch data is correct
-        final InputStream patchStream = this.getClass().getResourceAsStream(this.patchPath);
+        final String fullPatchPath = "/META-INF/" + Util.endingSlash(this.location) + this.patchPath;
+        final InputStream patchStream = PatchEntry.class.getResourceAsStream(fullPatchPath);
         if (patchStream == null) {
-            throw new IllegalStateException("Patch not found for file " + inputFile);
+            throw new IllegalStateException("Patch file not found: " + fullPatchPath);
         }
         final byte[] patchBytes = Util.readFully(patchStream);
         if (!Util.isDataValid(patchBytes, this.patchHash)) {
-            throw new IllegalStateException("Hash check of patch file failed for " + this.patchPath);
+            throw new IllegalStateException("Hash check of patch file failed for " + fullPatchPath);
         }
 
         final byte[] originalBytes = Util.readBytes(inputFile);
-        try (
-            final OutputStream outStream =
-                new BufferedOutputStream(Files.newOutputStream(outputFile, CREATE, WRITE, TRUNCATE_EXISTING))
-        ) {
+        try {
+            Files.createDirectories(outputFile.getParent());
+            try (
+                final OutputStream outStream =
+                    new BufferedOutputStream(Files.newOutputStream(outputFile, CREATE, WRITE, TRUNCATE_EXISTING))
+            ) {
+                Patch.patch(originalBytes, patchBytes, outStream);
+            }
+        } catch (final CompressorException | InvalidHeaderException | IOException e) {
             // Don't move this `catch` clause to the outer try-with-resources
             // the Util.fail method never returns, so `close()` would never get called
-            try {
-                Patch.patch(originalBytes, patchBytes, outStream);
-            } catch (final CompressorException | InvalidHeaderException | IOException e) {
-                throw Util.fail("Failed to patch " + inputFile, e);
-            }
+            throw Util.fail("Failed to patch " + inputFile, e);
         }
 
         if (!Util.isFileValid(outputFile, this.outputHash)) {
@@ -135,6 +144,6 @@ record PatchData(
         }
 
         // For the classpath, use the patched file instead of the original
-        urls.put(this.originalPath, outputFile.toUri().toURL());
+        urls.get(this.location).put(this.originalPath, outputFile.toUri().toURL());
     }
 }
