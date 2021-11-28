@@ -55,12 +55,10 @@ record FileEntry(byte[] hash, String id, String path) {
         final String baseDir,
         final Path outputDir
     ) throws IOException {
-        if (patches != null) {
-            for (final PatchEntry patch : patches) {
-                if (patch.location().equals(targetName) && patch.outputPath().equals(this.path)) {
-                    // This file will be created from a patch
-                    return;
-                }
+        for (final PatchEntry patch : patches) {
+            if (patch.location().equals(targetName) && patch.outputPath().equals(this.path)) {
+                // This file will be created from a patch
+                return;
             }
         }
 
