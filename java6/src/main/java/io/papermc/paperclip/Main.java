@@ -30,7 +30,7 @@ public final class Main {
     }
 
     private static int getJavaVersion() {
-        final String version = System.getProperty("java.version");
+        final String version = System.getProperty("java.specification.version");
         final String[] parts = version.split("\\.");
 
         final String errorMsg = "Could not determine version of the current JVM";
