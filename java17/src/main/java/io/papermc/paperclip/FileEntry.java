@@ -86,7 +86,9 @@ record FileEntry(byte[] hash, String id, String path) {
             fileStream = Files.newInputStream(originalFile);
         }
 
-        Files.createDirectories(outputFile.getParent());
+        if (!Files.isDirectory(outputFile.getParent())) {
+            Files.createDirectories(outputFile.getParent());
+        }
         Files.deleteIfExists(outputFile);
 
         try (

@@ -44,7 +44,9 @@ record DownloadContext(byte[] hash, URL url, String fileName) {
             return;
         }
 
-        Files.createDirectories(outputFile.getParent());
+        if (!Files.isDirectory(outputFile.getParent())) {
+            Files.createDirectories(outputFile.getParent());
+        }
         Files.deleteIfExists(outputFile);
 
         System.out.println("Downloading " + this.fileName);

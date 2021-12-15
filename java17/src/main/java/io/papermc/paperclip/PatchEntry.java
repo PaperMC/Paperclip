@@ -126,7 +126,9 @@ record PatchEntry(
 
         final byte[] originalBytes = Util.readBytes(inputFile);
         try {
-            Files.createDirectories(outputFile.getParent());
+            if (!Files.isDirectory(outputFile.getParent())) {
+                Files.createDirectories(outputFile.getParent());
+            }
             try (
                 final OutputStream outStream =
                     new BufferedOutputStream(Files.newOutputStream(outputFile, CREATE, WRITE, TRUNCATE_EXISTING))
