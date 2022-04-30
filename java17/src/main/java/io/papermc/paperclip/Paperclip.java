@@ -1,21 +1,19 @@
 package io.papermc.paperclip;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Pattern;
 
 public final class Paperclip {
 
@@ -80,12 +78,40 @@ public final class Paperclip {
         // This is due to change we make to some library classes inside the versions jar
         final Collection<URL> versionUrls = classpathUrls.get("versions").values();
         final Collection<URL> libraryUrls = classpathUrls.get("libraries").values();
+        final Set<URL> extraUrls = getExtraClassPath(versionUrls, libraryUrls);
 
         final URL[] emptyArray = new URL[0];
-        final URL[] urls = new URL[versionUrls.size() + libraryUrls.size()];
+        final URL[] urls = new URL[versionUrls.size() + libraryUrls.size() + extraUrls.size()];
         System.arraycopy(versionUrls.toArray(emptyArray), 0, urls, 0, versionUrls.size());
         System.arraycopy(libraryUrls.toArray(emptyArray), 0, urls, versionUrls.size(), libraryUrls.size());
+        System.arraycopy(extraUrls.toArray(emptyArray), 0, urls, versionUrls.size() + libraryUrls.size(), extraUrls.size());
         return urls;
+    }
+
+    private static Set<URL> getExtraClassPath(Collection<URL> versionUrls, Collection<URL> libraryUrls)
+    {
+        Set<URL> set = new HashSet<>();
+
+        RuntimeMXBean RUNTIME_MX_BEAN = ManagementFactory.getRuntimeMXBean();
+        URL BOOT_FILE_URL = Paperclip.class.getProtectionDomain().getCodeSource().getLocation();
+
+        String[] files = RUNTIME_MX_BEAN.getClassPath().split(Pattern.quote(":"));
+        if(files.length > 1)
+        {
+            for(String file : files)
+            {
+                try {
+                    URL url = new File(file).toURI().toURL();
+                    if(url.equals(BOOT_FILE_URL) || versionUrls.contains(url) || libraryUrls.contains(url)) {
+                        continue;
+                    }
+                    set.add(url);
+                } catch (MalformedURLException ignored) {
+                }
+            }
+        }
+
+        return set;
     }
 
     private static PatchEntry[] findPatches() {
