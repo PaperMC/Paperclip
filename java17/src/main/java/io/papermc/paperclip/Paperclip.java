@@ -1,5 +1,7 @@
 package io.papermc.paperclip;
 
+import dev.dirs.ProjectDirectories;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,10 +14,10 @@ import java.net.URLClassLoader;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public final class Paperclip {
 
@@ -49,7 +51,10 @@ public final class Paperclip {
     }
 
     private static URL[] setupClasspath() {
-        final var repoDir = Path.of(System.getProperty("bundlerRepoDir", ""));
+        final var repoDir = Path.of(Objects.requireNonNullElse(
+            System.getProperty("bundlerRepoDir", ProjectDirectories.from("io", "papermc", "paperclip").cacheDir),
+            ""
+        ));
 
         final PatchEntry[] patches = findPatches();
         final DownloadContext downloadContext = findDownloadContext();

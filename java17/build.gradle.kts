@@ -21,11 +21,12 @@ repositories {
 
 dependencies {
     implementation("io.sigpipe:jbsdiff:1.0")
+    implementation("dev.dirs:directories:26")
 }
 
 tasks.shadowJar {
     val prefix = "paperclip.libs"
-    listOf("org.apache", "org.tukaani", "io.sigpipe").forEach { pack ->
+    listOf("org.apache", "org.tukaani", "io.sigpipe", "dev.dirs").forEach { pack ->
         relocate(pack, "$prefix.$pack")
     }
 
