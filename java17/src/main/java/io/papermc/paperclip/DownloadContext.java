@@ -47,7 +47,7 @@ record DownloadContext(byte[] hash, URL url, String fileName) {
         Files.createDirectories(outputFile.getParent());
         Files.deleteIfExists(outputFile);
 
-        System.out.println("Downloading " + this.fileName);
+        System.out.println("다운로드 중 : " + this.fileName);
 
         try (
             final ReadableByteChannel source = Channels.newChannel(this.url.openStream());

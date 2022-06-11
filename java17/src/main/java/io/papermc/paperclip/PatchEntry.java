@@ -101,7 +101,7 @@ record PatchEntry(
         }
 
         if (!announced) {
-            System.out.println("Applying patches");
+            System.out.println("패치 적용 중");
             announced = true;
         }
 
@@ -136,7 +136,7 @@ record PatchEntry(
         } catch (final CompressorException | InvalidHeaderException | IOException e) {
             // Don't move this `catch` clause to the outer try-with-resources
             // the Util.fail method never returns, so `close()` would never get called
-            throw Util.fail("Failed to patch " + inputFile, e);
+            throw Util.fail("패치 실패 " + inputFile, e);
         }
 
         if (!Util.isFileValid(outputFile, this.outputHash)) {

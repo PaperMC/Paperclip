@@ -15,8 +15,8 @@ public final class Main {
 
     public static void main(final String[] args) {
         if (getJavaVersion() < 17) {
-            System.err.println("Minecraft 1.18 requires running the server with Java 17 or above. " +
-                "Download Java 17 (or above) from https://adoptium.net/");
+            System.err.println("마인크래프트 1.19는 Java 17이상이 필요해요. " +
+                "https://adoptium.net/ 에서 java 17을 다운로드받아주세요.");
             System.exit(1);
         }
 

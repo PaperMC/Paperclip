@@ -21,7 +21,7 @@ public final class Paperclip {
 
     public static void main(final String[] args) {
         if (Path.of("").toAbsolutePath().toString().contains("!")) {
-            System.err.println("Paperclip may not run in a directory containing '!'. Please rename the affected folder.");
+            System.err.println("KPaper는 경로에 !이 들어가면 실행할수 없어요.");
             System.exit(1);
         }
 
@@ -62,7 +62,7 @@ public final class Paperclip {
             try {
                 downloadContext.download(repoDir);
             } catch (final IOException e) {
-                throw Util.fail("Failed to download original jar", e);
+                throw Util.fail("오리지널 Jar파일 다운로드 실패", e);
             }
             baseFile = downloadContext.getOutputFile(repoDir);
         } else {
@@ -238,7 +238,7 @@ public final class Paperclip {
                 patch.applyPatch(urls, originalRootDir, repoDir);
             }
         } catch (final IOException e) {
-            throw Util.fail("Failed to apply patches", e);
+            throw Util.fail("패치 적용 실패", e);
         }
     }
 }
