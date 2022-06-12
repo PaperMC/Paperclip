@@ -21,6 +21,7 @@ repositories {
 
 dependencies {
     implementation("io.sigpipe:jbsdiff:1.0")
+    implementation("org.yaml:snakeyaml:1.30")
 }
 
 tasks.shadowJar {

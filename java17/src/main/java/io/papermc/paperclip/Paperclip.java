@@ -1,9 +1,11 @@
 package io.papermc.paperclip;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.introspector.PropertyUtils;
+import org.yaml.snakeyaml.representer.Representer;
+import tech.norhu1130.kpaperclip.KPaperclipConfig;
+
+import java.io.*;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -11,6 +13,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
@@ -19,11 +22,25 @@ import java.util.Map;
 
 public final class Paperclip {
 
-    public static void main(final String[] args) {
+    public static KPaperclipConfig config;
+    static File configFile = new File("kpaperclip.yml");
+
+    public static void main(final String[] args) throws IOException {
         if (Path.of("").toAbsolutePath().toString().contains("!")) {
             System.err.println("KPaper는 경로에 !이 들어가면 실행할수 없어요.");
             System.exit(1);
         }
+
+        Yaml yaml = new Yaml();
+        if(!configFile.exists()) {
+
+            try (InputStream inputStream = Paperclip.class
+                    .getClassLoader()
+                    .getResourceAsStream("kpaperclip.yml")) {
+                Files.copy(inputStream, configFile.toPath());
+            }
+        }
+        config = yaml.load(new FileReader(configFile));
 
         final URL[] classpathUrls = setupClasspath();
 
@@ -240,5 +257,10 @@ public final class Paperclip {
         } catch (final IOException e) {
             throw Util.fail("패치 적용 실패", e);
         }
+    }
+
+    public static void saveConfig() throws IOException {
+        Yaml yaml = new Yaml();
+        yaml.dump(config, new FileWriter(configFile));
     }
 }

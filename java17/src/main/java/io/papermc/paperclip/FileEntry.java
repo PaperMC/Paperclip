@@ -3,10 +3,12 @@ package io.papermc.paperclip;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -63,7 +65,15 @@ record FileEntry(byte[] hash, String id, String path) {
         }
 
         final Path outputFile = outputDir.resolve(this.path);
-        if (Files.exists(outputFile) && Util.isFileValid(outputFile, this.hash)) {
+        boolean updateRequired = false;
+        if(Paperclip.config.autoUpdate) {
+            HttpURLConnection connection = (HttpURLConnection) new URL("https://raw.githubusercontent.com/KPaperMC/patches/main/version").openConnection();
+            InputStream inputStream = connection.getInputStream();
+            int availableVersion = Integer.parseInt(new String(inputStream.readAllBytes(), StandardCharsets.UTF_8).replace("\n", "").replace("\n", ""));
+            updateRequired = availableVersion > Paperclip.config.currentVersion;
+            Paperclip.config.currentVersion = availableVersion;
+        }
+        if (Files.exists(outputFile) && Util.isFileValid(outputFile, this.hash) && !updateRequired) {
             urls.put(this.path, outputFile.toUri().toURL());
             return;
         }
@@ -89,6 +99,8 @@ record FileEntry(byte[] hash, String id, String path) {
         Files.createDirectories(outputFile.getParent());
         Files.deleteIfExists(outputFile);
 
+        if(updateRequired)
+            System.out.println("KPaper 업데이트중...");
         try (
             final InputStream stream = fileStream;
             final ReadableByteChannel inputChannel = Channels.newChannel(stream);
@@ -96,6 +108,7 @@ record FileEntry(byte[] hash, String id, String path) {
         ) {
             outputChannel.transferFrom(inputChannel, 0, Long.MAX_VALUE);
         }
+        Paperclip.saveConfig();
 
         if (!Util.isFileValid(outputFile, this.hash)) {
             throw new IllegalStateException("Hash check failed for extract filed " + outputFile);
