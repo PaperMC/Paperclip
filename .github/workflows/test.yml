@@ -1,13 +1,13 @@
 name: Test
 on:
   push:
-    branches: ['*']
+    tags-ignore: ['**']
   pull_request:
-    branches: ['*']
 
 jobs:
   test:
     name: Test
+    if: github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name
     runs-on: 'ubuntu-latest'
     steps:
       - uses: actions/checkout@v3
