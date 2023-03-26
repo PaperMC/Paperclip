@@ -1,34 +1,86 @@
 package io.papermc.paperclip;
 
+import io.papermc.paperclip.mixin.PaperclipLauncherBase;
+import io.papermc.paperclip.mixin.PaperclipMixinBootstrap;
+import io.papermc.paperclip.mixin.classloader.MixinClassLoader;
+import joptsimple.OptionParser;
+import org.spongepowered.asm.mixin.Mixins;
+import org.spongepowered.asm.mixin.transformer.Config;
+
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class Paperclip {
 
+
     public static void main(final String[] args) {
+        final OptionParser optionParser = new OptionParser() {
+            {
+                acceptsAll(Paperclip.asList("P", "plugins"), "Plugin directory to use")
+                        .withRequiredArg()
+                        .ofType(File.class)
+                        .defaultsTo(new File("plugins"))
+                        .describedAs("Plugin directory");
+            }
+        };
         if (Path.of("").toAbsolutePath().toString().contains("!")) {
             System.err.println("Paperclip may not run in a directory containing '!'. Please rename the affected folder.");
             System.exit(1);
         }
 
-        final URL[] classpathUrls = setupClasspath();
+        final Collection<Path> loaded = new ArrayList<>();
+        loaded.addAll(PaperclipMixinBootstrap.PLUGIN_CANDIDATE_LOADER.load(optionParser.parse(args)));
+        loaded.addAll(List.of(setupClasspath()).stream().map(url -> {
+            try {
+                return new File(url.toURI()).toPath();
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        }).toList());
 
-        final ClassLoader parentClassLoader = Paperclip.class.getClassLoader().getParent();
-        final URLClassLoader classLoader = new URLClassLoader(classpathUrls, parentClassLoader);
+        MixinClassLoader classLoader = new MixinClassLoader();
+        PaperclipLauncherBase.setClassLoader(classLoader);
+
+        for (final Path classpath : loaded) {
+            try {
+                PaperclipLauncherBase.addToClasspath(classpath);
+            } catch (final Exception e) {
+                throw new RuntimeException("Couldn't add following Jar to a classpath: " + classpath, e);
+            }
+        }
+        try {
+            PaperclipLauncherBase.addToClasspath(Path.of(Paperclip.class.getProtectionDomain().getCodeSource().getLocation().toURI())); // Adding because of the mixin dependency.
+        } catch (final Exception e) {
+            throw new RuntimeException("Something went wrong while adding a paperclip dependency: ", e);
+        }
+
+        PaperclipMixinBootstrap.init();
+        PaperclipLauncherBase.finishMixinBootstrapping();
+
+        classLoader.initializeTransformers();
+
+        for (Config config : Mixins.getConfigs()) {
+            for (String target : config.getConfig().getTargets()) {
+                System.out.println("target: " + target);
+            }
+        }
 
         final String mainClassName = findMainClass();
         System.out.println("Starting " + mainClassName);
@@ -46,6 +98,10 @@ public final class Paperclip {
         }, "ServerMain");
         runThread.setContextClassLoader(classLoader);
         runThread.start();
+    }
+
+    private static List<String> asList(String... params) {
+        return Arrays.asList(params);
     }
 
     private static URL[] setupClasspath() {
@@ -80,11 +136,14 @@ public final class Paperclip {
         // This is due to change we make to some library classes inside the versions jar
         final Collection<URL> versionUrls = classpathUrls.get("versions").values();
         final Collection<URL> libraryUrls = classpathUrls.get("libraries").values();
+        return mergeURLs(versionUrls, libraryUrls);
+    }
 
+    private static URL[] mergeURLs(Collection<URL> first, Collection<URL> second) {
         final URL[] emptyArray = new URL[0];
-        final URL[] urls = new URL[versionUrls.size() + libraryUrls.size()];
-        System.arraycopy(versionUrls.toArray(emptyArray), 0, urls, 0, versionUrls.size());
-        System.arraycopy(libraryUrls.toArray(emptyArray), 0, urls, versionUrls.size(), libraryUrls.size());
+        final URL[] urls = new URL[first.size() + second.size()];
+        System.arraycopy(first.toArray(emptyArray), 0, urls, 0, first.size());
+        System.arraycopy(second.toArray(emptyArray), 0, urls, first.size(), second.size());
         return urls;
     }
 

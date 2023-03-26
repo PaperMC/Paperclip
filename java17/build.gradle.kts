@@ -17,15 +17,18 @@ tasks.withType<JavaCompile>().configureEach {
 
 repositories {
     mavenCentral()
+    maven("https://maven.fabricmc.net/")
 }
 
 dependencies {
+    implementation(project(":mixin-support"))
     implementation("io.sigpipe:jbsdiff:1.0")
 }
 
 tasks.shadowJar {
     val prefix = "paperclip.libs"
-    listOf("org.apache", "org.tukaani", "io.sigpipe").forEach { pack ->
+    // Spongepowered mixin relocation breaks service loaders, and is generally unneeded.
+    listOf("org.apache", "org.tukaani", "io.sigpipe", "com.google", "joptsimple", "org.objectweb", "org.jetbrains", "org.intellij", "org.yaml").forEach { pack ->
         relocate(pack, "$prefix.$pack")
     }
 
