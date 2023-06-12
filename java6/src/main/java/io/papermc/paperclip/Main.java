@@ -12,13 +12,9 @@ package io.papermc.paperclip;
 import com.eclipsesource.json.Json;
 import com.eclipsesource.json.JsonObject;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 public final class Main {
 
@@ -30,7 +26,7 @@ public final class Main {
         InputStreamReader reader = null;
 
         try {
-            reader = new InputStreamReader(Main.class.getClassLoader().getResourceAsStream("version.json"), StandardCharsets.UTF_8);
+            reader = new InputStreamReader(Main.class.getClassLoader().getResourceAsStream("version.json"), "UTF_8");
             object = Json.parse(reader).asObject();
         } catch (final IOException exc) {
             throw new RuntimeException("Failed to read version.json", exc);
@@ -52,7 +48,7 @@ public final class Main {
         final String minecraftVersion = VERSION.getString("name", "Unknown");
         if (getJavaVersion() < javaVersion) {
             System.err.printf("Minecraft %s requires running the server with Java %s or above. " +
-                    "Download Java %s (or above) from https://adoptium.net/%n", minecraftVersion, javaVersion, javaVersion);
+                    "Download Java %s (or above) from https://adoptium.net/", minecraftVersion, javaVersion, javaVersion);
             System.exit(1);
         }
 

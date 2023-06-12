@@ -12,13 +12,11 @@ java {
         languageVersion.set(JavaLanguageVersion.of(11))
     }
 
-    targetCompatibility = JavaVersion.VERSION_1_6
-    sourceCompatibility = JavaVersion.VERSION_1_6
-
     withSourcesJar()
 }
 
 tasks.withType<JavaCompile>().configureEach {
+    options.release.set(6)
     options.compilerArgs = listOf("-Xlint:-options")
 }
 
@@ -28,6 +26,8 @@ tasks.shadowJar {
     listOf("com.eclipsesource").forEach { pack ->
         relocate(pack, "$prefix.$pack")
     }
+
+    minimize()
 
     exclude("META-INF/LICENSE.txt")
     exclude("META-INF/NOTICE.txt")
