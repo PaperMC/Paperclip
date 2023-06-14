@@ -15,7 +15,7 @@ subprojects {
 val mainClass = "io.papermc.paperclip.Main"
 
 tasks.jar {
-    val java6Jar = project(":java6").tasks.named("jar")
+    val java6Jar = project(":java6").tasks.named("shadowJar")
     val java17Jar = project(":java17").tasks.named("shadowJar")
     dependsOn(java6Jar, java17Jar)
 

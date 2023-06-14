@@ -9,14 +9,46 @@
 
 package io.papermc.paperclip;
 
+import com.eclipsesource.json.Json;
+import com.eclipsesource.json.JsonObject;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 
 public final class Main {
 
+    private static final JsonObject VERSION = readJsonFile();
+
+    private static JsonObject readJsonFile() {
+        final JsonObject object;
+
+        InputStreamReader reader = null;
+
+        try {
+            reader = new InputStreamReader(Main.class.getClassLoader().getResourceAsStream("version.json"), "UTF_8");
+            object = Json.parse(reader).asObject();
+        } catch (final IOException exc) {
+            throw new RuntimeException("Failed to read version.json", exc);
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        return object;
+    }
+
     public static void main(final String[] args) {
-        if (getJavaVersion() < 17) {
-            System.err.println("Minecraft 1.19 requires running the server with Java 17 or above. " +
-                "Download Java 17 (or above) from https://adoptium.net/");
+        final int javaVersion = VERSION.getInt("java_version", 17);
+        final String minecraftVersion = VERSION.getString("name", "Unknown");
+        if (getJavaVersion() < javaVersion) {
+            System.err.printf("Minecraft %s requires running the server with Java %s or above. " +
+                    "Download Java %s (or above) from https://adoptium.net/", minecraftVersion, javaVersion, javaVersion);
             System.exit(1);
         }
 
