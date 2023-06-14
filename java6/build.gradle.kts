@@ -20,7 +20,6 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs = listOf("-Xlint:-options")
 }
 
-
 tasks.shadowJar {
     val prefix = "paperclip.libs"
     listOf("com.eclipsesource").forEach { pack ->
