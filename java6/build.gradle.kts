@@ -3,6 +3,10 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
+repositories {
+    mavenCentral()
+}
+
 dependencies {
     implementation("com.eclipsesource.minimal-json:minimal-json:0.9.5")
 }
