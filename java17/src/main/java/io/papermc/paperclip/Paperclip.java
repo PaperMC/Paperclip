@@ -27,7 +27,7 @@ public final class Paperclip {
 
         final URL[] classpathUrls = setupClasspath();
 
-        final ClassLoader parentClassLoader = Paperclip.class.getClassLoader().getParent();
+        final ClassLoader parentClassLoader = Paperclip.class.getClassLoader();
         final URLClassLoader classLoader = new URLClassLoader(classpathUrls, parentClassLoader);
 
         final String mainClassName = findMainClass();
