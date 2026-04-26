@@ -106,9 +106,9 @@ publishing {
 
         repositories {
             val url = if (isSnapshot) {
-                "https://repo.papermc.io/repository/maven-snapshots/"
+                "https://artifactory.papermc.io/artifactory/snapshots/"
             } else {
-                "https://repo.papermc.io/repository/maven-releases/"
+                "https://artifactory.papermc.io/artifactory/releases/"
             }
 
             maven(url) {
