@@ -1,0 +1,72 @@
+name: Build Release
+on:
+  workflow_dispatch:
+    inputs:
+      jar_url:
+        description: 'Direct download URL for the input JAR'
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux (x86_64)
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            use_cross: true
+            extension: ""
+          # Linux (aarch64)
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            use_cross: true
+            extension: ""
+          # macOS (x86_64)
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            use_cross: false
+            extension: ""
+          # macOS (aarch64)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            use_cross: false
+            extension: ""
+          # Windows (x86_64)
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            use_cross: false
+            extension: ".exe"
+          # Windows (aarch64)
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            use_cross: false
+            extension: ".exe"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Download Input JAR
+        shell: bash
+        run: curl -fL -o paperclip.jar "${{ inputs.jar_url }}"
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          targets: ${{ matrix.target }}
+      - name: Install cross
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+      - name: Build with cross
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }}
+      - name: Build with cargo
+        if: ${{ !matrix.use_cross }}
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paperclip-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/paperclip${{ matrix.extension }}
