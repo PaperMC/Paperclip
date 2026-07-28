@@ -1,5 +1,8 @@
 use crate::errors::{Error, ErrorLoc};
-use crate::util::{bytes_matches_hash, create_file, extract_zip_entry, file_matches_hash, find_zip_entry, open_zip, parse_hex_named, read_zip_entry, read_zip_entry_text, require_zip_entry};
+use crate::util::{
+    bytes_matches_hash, create_file, extract_zip_entry, file_matches_hash, find_zip_entry,
+    open_zip, parse_hex_named, read_zip_entry, read_zip_entry_text, require_zip_entry,
+};
 use crate::{err, generic, l};
 use qbsdiff::Bspatch;
 use std::ffi::OsString;
@@ -16,12 +19,18 @@ pub fn repo_dir() -> PathBuf {
     repo_dir.to_owned()
 }
 
-pub fn setup_classpath(dir: &Path, jar_file: &Path) -> Result<(Vec<OsString>, PaperclipMeta), Error> {
+pub fn setup_classpath(
+    dir: &Path,
+    jar_file: &Path,
+) -> Result<(Vec<OsString>, PaperclipMeta), Error> {
     let mut paperclip_jar = open_zip(jar_file)?;
     let meta = extract_metadata(&mut paperclip_jar)?;
 
     if meta.patches.len() > 0 && meta.download_context.is_none() {
-        return generic!("Patches found without a corresponding original-url in {}", jar_file.display());
+        return generic!(
+            "Patches found without a corresponding original-url in {}",
+            jar_file.display()
+        );
     }
 
     let base_file = if let Some(download_context) = &meta.download_context {
@@ -32,7 +41,6 @@ pub fn setup_classpath(dir: &Path, jar_file: &Path) -> Result<(Vec<OsString>, Pa
     } else {
         None
     };
-
 
     let mut classpath = extract_and_apply_patches(&dir, &mut paperclip_jar, base_file, &meta)?;
     let mut res = Vec::with_capacity(classpath.versions.len() + classpath.libraries.len());
@@ -371,10 +379,11 @@ impl PatchEntry {
         }
 
         // Get and verify patch data is correct
-        let mut patch_entry = match find_zip_entry(paperclip_jar, &self.patch_path)? {
+        let patch_jar_path = format!("META-INF/{}/{}", self.location, self.patch_path);
+        let mut patch_entry = match find_zip_entry(paperclip_jar, &patch_jar_path)? {
             Some(entry) => entry,
             None => {
-                return generic!("Patch file not found in paperclip jar: {}", &self.patch_path);
+                return generic!("Patch file not found in paperclip jar: {}", &patch_jar_path);
             }
         };
         let patch_data = l!(read_zip_entry(&mut patch_entry))?;
@@ -501,7 +510,11 @@ impl DownloadContext {
         let url = parts[1];
         let file_name = parts[2];
 
-        Ok(DownloadContext { hash, url: url.to_string(), file_name: file_name.to_string() })
+        Ok(DownloadContext {
+            hash,
+            url: url.to_string(),
+            file_name: file_name.to_string(),
+        })
     }
 }
 

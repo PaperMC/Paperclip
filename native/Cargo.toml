@@ -10,6 +10,9 @@ opt-level = 3
 lto = true
 codegen-units = 1
 
+[target.aarch64-unknown-linux-gnu]
+dockerfile = "cross/aarch64-linux-unknown-musl.Dockerfile"
+
 [dependencies]
 jni = { version = "0.22.4", features = ["invocation"] }
 java-locator = "0.1.9"
