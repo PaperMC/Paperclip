@@ -10,29 +10,18 @@ pub mod util;
 use crate::aot::{AotCacheAction, AotMeta, check_aot_opt, setup_auto_recording};
 use crate::args::split_args;
 use crate::classpath::{repo_dir, setup_classpath};
-use crate::config::CONFIG;
 use crate::errors::Error;
 use crate::jni::check_java_version;
-use crate::util::{JoinHandleRes, classpath_sep, copy_owned};
+use crate::util::{classpath_sep, copy_owned, JoinHandleRes};
 use ::jni::objects::{JObjectArray, JString};
 use ::jni::strings::JNIString;
 use ::jni::{AttachConfig, Env, InitArgsBuilder, JNIVersion, JavaVM, jni_sig, jni_str};
-use rust_embed::RustEmbed;
 use std::ffi::OsString;
+use std::path::Path;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
-include!(concat!(env!("OUT_DIR"), "/patches.rs"));
-include!(concat!(env!("OUT_DIR"), "/versions.rs"));
-include!(concat!(env!("OUT_DIR"), "/libraries.rs"));
 include!(concat!(env!("OUT_DIR"), "/config.rs"));
-
-#[derive(RustEmbed)]
-#[folder = "$OUT_DIR/versions"]
-pub struct VersionsAssets;
-#[derive(RustEmbed)]
-#[folder = "$OUT_DIR/libraries"]
-pub struct LibrariesAssets;
 
 pub const ONLY_USE_AOT_FAILED_EXIT_CODE: i32 = 33;
 
@@ -53,10 +42,15 @@ fn run() -> i32 {
         }
     };
 
-    let jvm_args = arg_opts.jvm_args;
-    let app_args = arg_opts.app_args;
+    let jar = Path::new(&arg_opts.jar);
+    if !jar.exists() {
+        eprintln!("Jar file does not exist: {}", jar.display());
+        return 1;
+    }
 
     let repo_dir = repo_dir();
+    let jvm_args = arg_opts.jvm_args;
+    let app_args = arg_opts.app_args;
 
     let java_home = match java_locator::locate_java_home() {
         Ok(j) => j,
@@ -75,8 +69,8 @@ fn run() -> i32 {
         }
     };
 
-    let classpath = match setup_classpath(&repo_dir) {
-        Ok(classpath) => classpath,
+    let (classpath, meta) = match setup_classpath(&repo_dir, jar) {
+        Ok(r) => r,
         Err(e) => {
             eprintln!("{}", Error::wrap("Failed to setup classpath", e));
             return 1;
@@ -115,6 +109,8 @@ fn run() -> i32 {
     let jvm_args = copy_owned(&jvm_args);
     let app_args = copy_owned(&app_args);
     let jvm_thread = std::thread::spawn(move || {
+        let _hold = JvmThreadDrop; // Run drop() on this whenever this thread finishes
+
         let jvm = match create_jvm(&jvm_args, &classpath, &aot_action) {
             Ok(jvm) => jvm,
             Err(Error::Exit(code)) => return code,
@@ -125,7 +121,7 @@ fn run() -> i32 {
         };
         let jvm = Arc::new(jvm);
 
-        let server_thread = start_jvm_thread(jvm.clone(), &app_args);
+        let server_thread = start_jvm_thread(jvm.clone(), &meta.main_class, &app_args);
         let server_thread_res = server_thread.join_res();
 
         let meta_thread = setup_auto_recording(
@@ -147,14 +143,6 @@ fn run() -> i32 {
             }
         }
         drop(jvm);
-
-        #[cfg(target_os = "macos")]
-        {
-            use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopStop};
-            unsafe {
-                CFRunLoopStop(CFRunLoopGetMain());
-            }
-        }
 
         if let Some(Err(e)) = meta_thread_res {
             eprintln!("Error during AOT recording: {e}");
@@ -183,11 +171,25 @@ fn run() -> i32 {
     jvm_thread.join().unwrap_or_else(|_| 1)
 }
 
-fn start_jvm_thread(jvm: Arc<JavaVM>, app_args: &[String]) -> JoinHandle<Result<(), Error>> {
+struct JvmThreadDrop;
+impl Drop for JvmThreadDrop {
+    fn drop(&mut self) {
+        #[cfg(target_os = "macos")]
+        {
+            use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopStop};
+            unsafe {
+                CFRunLoopStop(CFRunLoopGetMain());
+            }
+        }
+    }
+}
+
+fn start_jvm_thread(jvm: Arc<JavaVM>, main_class: &str, app_args: &[String]) -> JoinHandle<Result<(), Error>> {
     let app_args = app_args
         .iter()
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
+    let main_class = main_class.to_string();
     let handle = std::thread::spawn(move || {
         let res = jvm.attach_current_thread_with_config(
             || {
@@ -196,7 +198,7 @@ fn start_jvm_thread(jvm: Arc<JavaVM>, app_args: &[String]) -> JoinHandle<Result<
                     .thread_name(jni_str!("main"))
             },
             None,
-            |env| exec_jvm(env, &app_args),
+            |env| exec_jvm(env, &main_class, &app_args),
         );
 
         res
@@ -276,7 +278,7 @@ fn init_jvm(
     }
 }
 
-fn exec_jvm(env: &mut Env, args: &[String]) -> Result<(), Error> {
+fn exec_jvm(env: &mut Env, main_class: &str, args: &[String]) -> Result<(), Error> {
     let args_array = l!(JObjectArray::<JString>::new(
         env,
         args.len(),
@@ -287,7 +289,7 @@ fn exec_jvm(env: &mut Env, args: &[String]) -> Result<(), Error> {
         l!(args_array.set_element(env, i, arg))?;
     }
 
-    let class_name = JNIString::new(CONFIG.main_class.replace(".", "/"));
+    let class_name = JNIString::new(main_class.replace(".", "/"));
     let psvm_name = jni_str!("main");
     let psvm_desc = jni_sig!("([Ljava/lang/String;)V");
     l!(env.call_static_method(class_name, psvm_name, psvm_desc, &[(&args_array).into()]))?;

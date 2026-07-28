@@ -1,3 +1,4 @@
+use std::io::Read;
 use crate::errors::{Error, ErrorLoc};
 use crate::{err, generic, l};
 use digest_io::IoWrapper;
@@ -6,6 +7,8 @@ use std::ffi::OsString;
 use std::fs::File;
 use std::path::Path;
 use std::thread::JoinHandle;
+use zip::read::ZipFile;
+use zip::result::ZipError;
 use zip::ZipArchive;
 
 pub fn copy_owned<S: ToString>(slice: &[S]) -> Vec<String> {
@@ -14,6 +17,23 @@ pub fn copy_owned<S: ToString>(slice: &[S]) -> Vec<String> {
         res.push(item.to_string());
     }
     res
+}
+
+pub fn parse_hex(s: &str) -> Result<[u8; 32], Error> {
+    let decoded = l!(hex::decode(s))?;
+    if decoded.len() != 32 {
+        return generic!("Invalid hex string (not 32 bytes long): {s}");
+    }
+    let mut res = [0u8; 32];
+    res.copy_from_slice(&decoded);
+    Ok(res)
+}
+
+pub fn parse_hex_named(name: &str, s: &str) -> Result<[u8; 32], Error> {
+    err! {
+        parse_hex(s)
+        => format!("Failed to parse hex string '{name}': {s}")
+    }
 }
 
 pub fn file_hash(path: &Path) -> Result<[u8; 32], Error> {
@@ -53,16 +73,11 @@ pub fn bytes_matches_hash(data: &[u8], expected_hash: &[u8]) -> bool {
 }
 
 pub fn extract_zip_entry(
-    archive: &mut ZipArchive<File>,
+    entry: &mut ZipFile<File>,
     internal_path: &str,
     destination: &Path,
 ) -> Result<(), Error> {
-    let mut zip_file = err! {
-        archive.by_name(internal_path)
-        => format!("Failed to find entry in zip: {}", internal_path)
-    }?;
-
-    if zip_file.is_dir() {
+    if entry.is_dir() {
         create_directory(destination).loc(l!())?;
         return Ok(());
     }
@@ -75,7 +90,7 @@ pub fn extract_zip_entry(
 
     let mut out_file = create_file(destination).loc(l!())?;
     err! {
-        std::io::copy(&mut zip_file, &mut out_file)
+        std::io::copy(entry, &mut out_file)
         => format!("Failed to extract {} from zip to {}", internal_path, destination.display())
     }?;
 
@@ -102,6 +117,13 @@ pub fn create_directory(path: &Path) -> Result<(), Error> {
     }
 }
 
+pub fn write_file(path: &Path, data: &[u8]) -> Result<(), Error> {
+    err! {
+        std::fs::write(&path, data)
+        => format!("Failed to write file: {}", path.display())
+    }
+}
+
 pub fn create_file(path: &Path) -> Result<File, Error> {
     err! {
         File::create(path)
@@ -114,6 +136,50 @@ pub fn open_file(path: &Path) -> Result<File, Error> {
         File::open(path)
         => format!("Failed to open file: {}", path.display())
     }
+}
+
+pub fn open_zip(path: &Path) -> Result<ZipArchive<File>, Error> {
+    err! {
+        ZipArchive::new(open_file(path).loc(l!())?)
+        => format!("Failed to open zip: {}", path.display())
+    }
+}
+
+pub fn find_zip_entry<'a>(archive: &'a mut ZipArchive<File>, name: &str) -> Result<Option<ZipFile<'a, File>>, Error> {
+    let entry = archive.by_name(name);
+    err! {
+        match entry {
+            Ok(entry) => Ok::<Option<ZipFile<'_, File>>, Error>(Some(entry)),
+            Err(ZipError::FileNotFound) => Ok(None),
+            Err(e) => return l!(Err(Error::from(e))),
+        }
+        => format!("Failed to find entry in zip: {}", name)
+    }
+}
+
+pub fn require_zip_entry<'a>(archive: &'a mut ZipArchive<File>, name: &str) -> Result<ZipFile<'a, File>, Error> {
+    match find_zip_entry(archive, name)? {
+        Some(entry) => Ok(entry),
+        None => generic!("Failed to find entry in zip: {name}"),
+    }
+}
+
+pub fn read_zip_entry(entry: &mut ZipFile<File>) -> Result<Vec<u8>, Error> {
+    let mut data = Vec::new();
+    err! {
+        entry.read_to_end(&mut data)
+        => format!("Failed to read entry: {}", entry.name())
+    }?;
+    Ok(data)
+}
+
+
+pub fn read_zip_entry_text(entry: &mut ZipFile<File>) -> Result<String, Error> {
+    let data = l!(read_zip_entry(entry))?;
+    return err! {
+        String::from_utf8(data)
+        => format!("Invalid UTF-8 in {}", entry.name())
+    };
 }
 
 #[cfg(not(target_os = "windows"))]

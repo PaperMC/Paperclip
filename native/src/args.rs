@@ -1,10 +1,10 @@
 use crate::ONLY_USE_AOT_FAILED_EXIT_CODE;
-use crate::config::CONFIG;
 use crate::errors::Error;
 use indoc::indoc;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ArgOptions<'a> {
+    pub jar: &'a str,
     pub jvm_args: Vec<&'a str>,
     pub app_args: Vec<&'a str>,
     pub record: RecordMode,
@@ -30,37 +30,37 @@ pub fn split_args<'a>(args: &'a Vec<String>) -> Result<Option<ArgOptions<'a>>, E
     //  2. jvm args
     //  3. app args
     // If a paperclip arg is found, it's handled and we immediately return.
-    // jvm args must strictly come before app args. We determine jvm args by looking for -D or -X. If it doesn't
-    // match, we assume it's an app arg. If we see another jvm arg after an app arg, we fail.
+    // jvm args come before -jar, and app args come after -jar.
 
     let mut record_preference = RecordMode::default();
+    let mut jar: Option<&'a str> = None;
     let mut jvm_args = Vec::<&'a str>::new();
     let mut app_args = Vec::<&'a str>::new();
 
-    let mut partition_mark = false;
-    for arg in &args[1..] {
+    let args_iter = &mut args[1..].iter();
+    loop {
+        let next = args_iter.next();
+        if next.is_none() {
+            break;
+        }
+        let arg = next.unwrap();
+
         match arg.as_str() {
             "-h" | "--help" => {
-                if jvm_args.is_empty() && app_args.is_empty() {
+                if jvm_args.is_empty() && app_args.is_empty() && jar.is_none() {
                     return print_help(args);
                 }
                 app_args.push(arg);
             }
             "-v" | "--version" => {
-                if jvm_args.is_empty() && app_args.is_empty() {
+                if jvm_args.is_empty() && app_args.is_empty() && jar.is_none() {
                     return print_version();
-                }
-                app_args.push(arg);
-            }
-            "--version-json" => {
-                if jvm_args.is_empty() && app_args.is_empty() {
-                    return print_vers_json();
                 }
                 app_args.push(arg);
             }
             "--check-aot" | "--only-use-aot" | "--no-record" | "--only-record"
             | "--force-record" | "--no-aot" => {
-                if jvm_args.is_empty() && app_args.is_empty() {
+                if jvm_args.is_empty() && app_args.is_empty() && jar.is_none() {
                     if record_preference != RecordMode::Normal {
                         eprintln!(
                             "--check-aot, --only-use-aot, --no-record, --only-record, \
@@ -81,30 +81,22 @@ pub fn split_args<'a>(args: &'a Vec<String>) -> Result<Option<ArgOptions<'a>>, E
                     app_args.push(arg);
                 }
             }
-            "--" => {
-                if partition_mark {
-                    app_args.push(arg);
-                } else {
-                    partition_mark = true;
+            "-jar" | "--jar" => {
+                if jar.is_some() {
+                    eprintln!("-jar may only be specified once");
+                    return Err(Error::Exit(1));
                 }
+
+                let jar_file =args_iter.next();
+                if jar_file.is_none() {
+                    eprintln!("-jar requires a jar file argument");
+                    return Err(Error::Exit(1));
+                }
+                jar = Some(jar_file.unwrap());
             }
             _ => {
-                if partition_mark {
-                    app_args.push(arg);
-                } else if is_jvm_arg(arg) {
-                    if !app_args.is_empty() {
-                        eprintln!(
-                            "JVM arguments must come before application arguments: `{}` comes after `{}`",
-                            arg,
-                            app_args.last().unwrap()
-                        );
-                        return Err(Error::Exit(1));
-                    }
-                    if arg.starts_with("-J") {
-                        jvm_args.push(&arg[2..]);
-                    } else {
-                        jvm_args.push(arg);
-                    }
+                if jar.is_none() {
+                    jvm_args.push(arg);
                 } else {
                     app_args.push(arg);
                 }
@@ -112,15 +104,17 @@ pub fn split_args<'a>(args: &'a Vec<String>) -> Result<Option<ArgOptions<'a>>, E
         }
     }
 
+    if jar.is_none() {
+        eprintln!("-jar <paper_jar> argument must be provided");
+        return Err(Error::Exit(1));
+    }
+
     Ok(Some(ArgOptions {
+        jar: jar.unwrap(),
         record: record_preference,
         jvm_args,
         app_args,
     }))
-}
-
-fn is_jvm_arg(arg: &str) -> bool {
-    arg.starts_with("-D") || arg.starts_with("-X") || arg.starts_with("-J")
 }
 
 fn print_help(args: &Vec<String>) -> Result<Option<ArgOptions<'static>>, Error> {
@@ -131,7 +125,7 @@ fn print_help(args: &Vec<String>) -> Result<Option<ArgOptions<'static>>, Error> 
 
             License: MIT
 
-            Usage: {} [aot args] [jvm args] [app args]
+            Usage: {} [aot args] [jvm args] -jar <paper_jar> [app args]
 
             Description:
               Wrapper to launch the Paper server. Arguments are divided into JVM
@@ -149,6 +143,9 @@ fn print_help(args: &Vec<String>) -> Result<Option<ArgOptions<'static>>, Error> 
               'JAVA_HOME' environment variable will always take highest priority
               when selecting from multiple JREs. Otherwise, the location of the
               'java' executable on the 'PATH' will be used.
+
+            -jar <paper_jar> The path to the Paper server jar file. This argument is
+                             required. The jar file must be a valid Paperclip jar.
 
             AOT Arguments:
               Arguments that control how paperclip handles AOT recording and cache
@@ -178,25 +175,13 @@ fn print_help(args: &Vec<String>) -> Result<Option<ArgOptions<'static>>, Error> 
               --no-aot       Disable all AOT features completely.
 
             JVM Arguments:
-              Arguments passed to the JVM must match one of the following formats:
-
-              -X<arg>        Pass extended arguments to the JVM.
-                             (e.g., -Xmx4G, -XX:+UseG1GC)
-              -D<prop>       Pass system properties to the JVM.
-                             (e.g., -Dcom.mojang.eula.agree=true)
-              -J<arg>        Pass any other arbitrary argument to the JVM by
-                             prefixing it with '-J'. (e.g., '-J--enable-preview'
-                             will pass '--enable-preview' to the JVM)
+              Any argument that preceeds '-jar' after the AOT arguments is passed
+              directly into the JVM. This includes -Xmx, -XX:+UseG1GC, etc. as well
+              as others like -D<prop> for setting system properties.
 
             Application Arguments:
-              Any argument that does not start with -X, -D, or -J is automatically
-              assumed to be an Application argument and marks the beginning of the
-              [app args] section.
-
-            Special Arguments:
-              --             Marks the end of JVM arguments. All arguments following
-                             this separator will be treated strictly as Application
-                             arguments, even if they start with -X, -D, or -J.
+              Any argument tha follows the jar file given to the '-jar' argument is
+              passed directly into the server.
         "},
         args[0], ONLY_USE_AOT_FAILED_EXIT_CODE,
     );
@@ -205,11 +190,6 @@ fn print_help(args: &Vec<String>) -> Result<Option<ArgOptions<'static>>, Error> 
 }
 
 fn print_version() -> Result<Option<ArgOptions<'static>>, Error> {
-    println!("{}", CONFIG.version);
-    Ok(None)
-}
-
-fn print_vers_json() -> Result<Option<ArgOptions<'static>>, Error> {
-    println!("{}", CONFIG.version_json);
+    println!("{}", crate::config::VERSION);
     Ok(None)
 }

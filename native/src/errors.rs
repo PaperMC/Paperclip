@@ -18,6 +18,10 @@ pub enum Error {
     Net(#[from] nyquest::Error),
     #[error("Zip error: {0:?}")]
     Zip(#[from] zip::result::ZipError),
+    #[error("UTF-8 error: {0:?}")]
+    Utf(#[from] std::string::FromUtf8Error),
+    #[error("Hex error: {0:?}")]
+    Hex(#[from] hex::FromHexError),
     #[error("Parse error: {0:?}")]
     Int(#[from] std::num::ParseIntError),
     #[error("Serialization error: {0:?}")]
