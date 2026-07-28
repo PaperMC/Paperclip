@@ -1,13 +1,16 @@
 name: Build Release
 on:
   workflow_dispatch:
-    inputs:
-      jar_url:
-        description: 'Direct download URL for the input JAR'
-        required: true
-        type: string
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      build_date: ${{ steps.get_date.outputs.date }}
+    steps:
+      - name: Generate build date
+        id: get_date
+        run: echo "date=$(date +%s)" >> "$GITHUB_OUTPUT"
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
@@ -48,9 +51,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-      - name: Download Input JAR
-        shell: bash
-        run: curl -fL -o paperclip.jar "${{ inputs.jar_url }}"
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -62,11 +62,15 @@ jobs:
       - name: Build with cross
         if: matrix.use_cross
         run: cross build --release --target ${{ matrix.target }}
+        env:
+          CI_BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
       - name: Build with cargo
         if: ${{ !matrix.use_cross }}
         run: cargo build --release --target ${{ matrix.target }}
+        env:
+          CI_BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: paperclip-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/paperclip${{ matrix.extension }}

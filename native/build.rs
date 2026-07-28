@@ -1,8 +1,10 @@
 use std::path::Path;
 use std::process::Command;
-use chrono::Utc;
+use chrono::{DateTime, SubsecRound, Utc};
 
 fn main() {
+    println!("cargo::rerun-if-env-changed=CI_BUILD_DATE");
+
     configure_host();
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
@@ -18,7 +20,10 @@ fn main() {
     let rev = String::from_utf8(rev).unwrap();
     let rev = rev.trim();
 
-    let timestamp = Utc::now().format("%+").to_string();
+    let timestamp = std::env::var("CI_BUILD_DATE")
+        .map(|d| DateTime::from_timestamp(d.parse().unwrap(), 0).unwrap())
+        .unwrap_or(Utc::now());
+    let timestamp = timestamp.trunc_subsecs(0).format("%+").to_string();
 
     let version_text = format!("pub mod config {{ pub const VERSION: &str = \"{base_version} (commit: {rev}) (build: {timestamp})\"; }}\n");
     std::fs::write(path, &version_text).unwrap();
