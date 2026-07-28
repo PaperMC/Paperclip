@@ -170,6 +170,9 @@ pub fn check_aot_opt<'a>(
     }
 
     let (aot_cache_file, aot_meta_file) = AotMeta::aot_files(&repo_dir);
+    if let Some(parent) = aot_cache_file.parent() {
+        create_directory(parent)?;
+    }
 
     if !aot_cache_file.exists() || !aot_meta_file.exists() {
         return match mode {
