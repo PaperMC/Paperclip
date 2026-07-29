@@ -12,7 +12,7 @@ use crate::args::split_args;
 use crate::classpath::{repo_dir, setup_classpath};
 use crate::errors::Error;
 use crate::jni::check_java_version;
-use crate::util::{classpath_sep, copy_owned, JoinHandleRes};
+use crate::util::{JoinHandleRes, classpath_sep, copy_owned};
 use ::jni::objects::{JObjectArray, JString};
 use ::jni::strings::JNIString;
 use ::jni::{AttachConfig, Env, InitArgsBuilder, JNIVersion, JavaVM, jni_sig, jni_str};
@@ -32,7 +32,7 @@ fn main() {
 
 fn run() -> i32 {
     let args: Vec<String> = std::env::args().collect();
-    let arg_opts = match split_args(&args) {
+    let arg_opts = match split_args(args) {
         Ok(Some(arg_opts)) => arg_opts,
         Ok(None) => return 0,
         Err(Error::Exit(code)) => return code,
@@ -121,6 +121,11 @@ fn run() -> i32 {
         };
         let jvm = Arc::new(jvm);
 
+        if let AotCacheAction::Record { .. } = aot_action {
+            println!(
+                "Beginning AOT cache recording (This may cause slowdowns while the JVM is recording)..."
+            );
+        }
         let server_thread = start_jvm_thread(jvm.clone(), &meta.main_class, &app_args);
         let server_thread_res = server_thread.join_res();
 
@@ -132,10 +137,7 @@ fn run() -> i32 {
             &app_args,
             arg_opts.record,
         );
-        let meta_thread_res = match meta_thread {
-            Some(h) => Some(h.join_res()),
-            None => None,
-        };
+        let meta_thread_res = meta_thread.map(|h| h.join_res());
 
         unsafe {
             if let Err(e) = jvm.destroy() {
@@ -168,7 +170,7 @@ fn run() -> i32 {
         }
     }
 
-    jvm_thread.join().unwrap_or_else(|_| 1)
+    jvm_thread.join().unwrap_or(1)
 }
 
 struct JvmThreadDrop;
@@ -184,14 +186,19 @@ impl Drop for JvmThreadDrop {
     }
 }
 
-fn start_jvm_thread(jvm: Arc<JavaVM>, main_class: &str, app_args: &[String]) -> JoinHandle<Result<(), Error>> {
+fn start_jvm_thread(
+    jvm: Arc<JavaVM>,
+    main_class: &str,
+    app_args: &[String],
+) -> JoinHandle<Result<(), Error>> {
     let app_args = app_args
         .iter()
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
     let main_class = main_class.to_string();
-    let handle = std::thread::spawn(move || {
-        let res = jvm.attach_current_thread_with_config(
+
+    std::thread::spawn(move || {
+        jvm.attach_current_thread_with_config(
             || {
                 AttachConfig::default()
                     .scoped(true)
@@ -199,12 +206,8 @@ fn start_jvm_thread(jvm: Arc<JavaVM>, main_class: &str, app_args: &[String]) -> 
             },
             None,
             |env| exec_jvm(env, &main_class, &app_args),
-        );
-
-        res
-    });
-
-    handle
+        )
+    })
 }
 
 fn create_jvm(
@@ -213,13 +216,13 @@ fn create_jvm(
     aot_action: &AotCacheAction,
 ) -> Result<JavaVM, Error> {
     // Exit if user has set `PAPERCLIP_PATCHONLY` env variable to `true`
-    if let Some(prop) = std::env::var_os("PAPERCLIP_PATCHONLY") {
-        if prop.eq_ignore_ascii_case("true") {
-            return Err(Error::Exit(0));
-        }
+    if let Some(prop) = std::env::var_os("PAPERCLIP_PATCHONLY")
+        && prop.eq_ignore_ascii_case("true")
+    {
+        return Err(Error::Exit(0));
     }
 
-    init_jvm(jvm_args, &classpath, &aot_action)
+    init_jvm(jvm_args, classpath, aot_action)
 }
 
 fn init_jvm(
@@ -237,10 +240,14 @@ fn init_jvm(
             match aot_cache_file.to_str() {
                 Some(p) => match aot_action {
                     AotCacheAction::Use { .. } => {
-                        init_args = init_args.option(format!("-XX:AOTCache={p}"))
+                        init_args = init_args
+                            .option(format!("-XX:AOTCache={p}"))
+                            .option("-Xlog:aot*=error")
                     }
                     AotCacheAction::Record { .. } => {
-                        init_args = init_args.option(format!("-XX:AOTCacheOutput={p}",))
+                        init_args = init_args
+                            .option(format!("-XX:AOTCacheOutput={p}",))
+                            .option("-Xlog:aot*=error")
                     }
                     AotCacheAction::None => unreachable!(),
                 },
@@ -284,8 +291,8 @@ fn exec_jvm(env: &mut Env, main_class: &str, args: &[String]) -> Result<(), Erro
         args.len(),
         JString::null()
     ))?;
-    for i in 0..args.len() {
-        let arg = l!(JString::new(env, args[i].clone()))?;
+    for (i, arg) in args.iter().enumerate() {
+        let arg = l!(JString::new(env, arg.clone()))?;
         l!(args_array.set_element(env, i, arg))?;
     }
 

@@ -28,7 +28,7 @@ pub fn as_primitive_array<'a: 'b, 'b, T: TypeArray>(
     array: &[T],
 ) -> Result<JPrimitiveArray<'b, T>, Error> {
     let java_array = l!(JPrimitiveArray::<T>::new(env, array.len()))?;
-    l!(java_array.set_region(env, 0, &array))?;
+    l!(java_array.set_region(env, 0, array))?;
     Ok(java_array)
 }
 

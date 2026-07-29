@@ -26,7 +26,7 @@ pub fn setup_classpath(
     let mut paperclip_jar = open_zip(jar_file)?;
     let meta = extract_metadata(&mut paperclip_jar)?;
 
-    if meta.patches.len() > 0 && meta.download_context.is_none() {
+    if !meta.patches.is_empty() && meta.download_context.is_none() {
         return generic!(
             "Patches found without a corresponding original-url in {}",
             jar_file.display()
@@ -42,7 +42,7 @@ pub fn setup_classpath(
         None
     };
 
-    let mut classpath = extract_and_apply_patches(&dir, &mut paperclip_jar, base_file, &meta)?;
+    let mut classpath = extract_and_apply_patches(dir, &mut paperclip_jar, base_file, &meta)?;
     let mut res = Vec::with_capacity(classpath.versions.len() + classpath.libraries.len());
     res.append(&mut classpath.versions);
     res.append(&mut classpath.libraries);
@@ -180,8 +180,17 @@ fn extract_files(
     let jar_path = format!("META-INF/{}", location.name());
     let target_path = dir.join(location.name());
     for entry in entries {
-        err! { entry.extract(meta, location, &target_path, paperclip_jar, original_jar, &jar_path, classpath) =>
-            format!("Failed to extract files from {}/{}: {}/{}", jar_path, entry.path, target_path.display(), entry.path)
+        err! {
+            entry.extract(FileEntryArgs {
+                meta,
+                location,
+                target_base_path: &target_path,
+                paperclip_jar,
+                original_jar,
+                jar_base_path: &jar_path,
+                classpath
+            })
+            => format!("Failed to extract files from {}/{}: {}/{}", jar_path, entry.path, target_path.display(), entry.path)
         }?;
     }
 
@@ -245,44 +254,46 @@ pub struct FileEntry {
     pub path: String,
 }
 
+struct FileEntryArgs<'a> {
+    meta: &'a PaperclipMeta,
+    location: Location,
+    target_base_path: &'a Path,
+    paperclip_jar: &'a mut ZipArchive<File>,
+    original_jar: &'a mut Option<ZipArchive<File>>,
+    jar_base_path: &'a str,
+    classpath: &'a mut Classpath,
+}
+
 impl FileEntry {
-    fn extract(
-        &self,
-        meta: &PaperclipMeta,
-        location: Location,
-        target_base_path: &Path,
-        paperclip_jar: &mut ZipArchive<File>,
-        original_jar: &mut Option<ZipArchive<File>>,
-        jar_base_path: &str,
-        classpath: &mut Classpath,
-    ) -> Result<(), Error> {
-        for patch in &meta.patches {
-            if patch.location == location.name() && patch.output_path == self.path {
+    fn extract(&self, args: FileEntryArgs) -> Result<(), Error> {
+        for patch in &args.meta.patches {
+            if patch.location == args.location.name() && patch.output_path == self.path {
                 // This file will be created from a patch
                 return Ok(());
             }
         }
 
-        let output_path = target_base_path.join(&self.path);
+        let output_path = args.target_base_path.join(&self.path);
         if output_path.exists() && file_matches_hash(&output_path, &self.hash)? {
-            classpath.push(location, output_path.into_os_string());
+            args.classpath
+                .push(args.location, output_path.into_os_string());
             return Ok(());
         }
 
         // The file may either be in the paperclip jar, or the original jar
-        let entry_path = format!("{}/{}", jar_base_path, self.path);
+        let entry_path = format!("{}/{}", args.jar_base_path, self.path);
 
-        if let Some(mut entry) = find_zip_entry(paperclip_jar, &entry_path)? {
+        if let Some(mut entry) = find_zip_entry(args.paperclip_jar, &entry_path)? {
             err! {
                 extract_zip_entry(&mut entry, &entry_path, &output_path)
-                => format!("Failed to extract file from paperclip jar: {}/{}", jar_base_path, self.path)
+                => format!("Failed to extract file from paperclip jar: {}/{}", args.jar_base_path, self.path)
             }?
         } else {
-            if let Some(original_jar) = original_jar {
+            if let Some(original_jar) = args.original_jar {
                 if let Some(mut entry) = find_zip_entry(original_jar, &entry_path)? {
                     err! {
                         extract_zip_entry(&mut entry, &entry_path, &output_path)
-                        => format!("Failed to extract file from original jar: {}/{}", jar_base_path, self.path)
+                        => format!("Failed to extract file from original jar: {}/{}", args.jar_base_path, self.path)
                     }?
                 } else {
                     return generic!(
@@ -302,7 +313,8 @@ impl FileEntry {
             return generic!("Hash check failed for extracted file {}", self.path);
         }
 
-        classpath.push(location, output_path.into_os_string());
+        args.classpath
+            .push(args.location, output_path.into_os_string());
         Ok(())
     }
 
@@ -463,7 +475,7 @@ pub struct DownloadContext {
 
 impl DownloadContext {
     pub fn download(&self, repo_dir: &Path) -> Result<PathBuf, Error> {
-        let target_file = err! { self.create_output_target(&repo_dir) =>
+        let target_file = err! { self.create_output_target(repo_dir) =>
             format!("Failed to create directory: {}", repo_dir.display())
         }?;
         if target_file.exists() && file_matches_hash(&target_file, &self.hash)? {

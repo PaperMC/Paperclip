@@ -1,15 +1,15 @@
-use std::io::Read;
 use crate::errors::{Error, ErrorLoc};
 use crate::{err, generic, l};
 use digest_io::IoWrapper;
 use sha2::{Digest, Sha256};
 use std::ffi::OsString;
 use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 use std::thread::JoinHandle;
+use zip::ZipArchive;
 use zip::read::ZipFile;
 use zip::result::ZipError;
-use zip::ZipArchive;
 
 pub fn copy_owned<S: ToString>(slice: &[S]) -> Vec<String> {
     let mut res = Vec::with_capacity(slice.len());
@@ -82,10 +82,10 @@ pub fn extract_zip_entry(
         return Ok(());
     }
 
-    if let Some(parent) = destination.parent() {
-        if !parent.exists() {
-            create_directory(parent).loc(l!())?;
-        }
+    if let Some(parent) = destination.parent()
+        && !parent.exists()
+    {
+        create_directory(parent).loc(l!())?;
     }
 
     let mut out_file = create_file(destination).loc(l!())?;
@@ -110,6 +110,41 @@ impl<T> JoinHandleRes for JoinHandle<Result<T, Error>> {
     }
 }
 
+pub struct ComposingIterator<I> {
+    base: Box<dyn Iterator<Item = I>>,
+    layer: Option<Box<dyn Iterator<Item = I>>>,
+}
+
+impl<T> ComposingIterator<T> {
+    pub fn new(base: Box<dyn Iterator<Item = T>>) -> Self {
+        Self { base, layer: None }
+    }
+
+    pub fn push_layer(&mut self, layer: Box<dyn Iterator<Item = T>>) {
+        self.layer = Some(layer);
+    }
+
+    pub fn is_nested(&self) -> bool {
+        self.layer.is_some()
+    }
+}
+
+impl<I> Iterator for ComposingIterator<I> {
+    type Item = I;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(layer) = &mut self.layer {
+            match layer.next() {
+                Some(n) => return Some(n),
+                None => self.layer = None,
+            }
+        }
+        self.base.next()
+    }
+}
+
+// File operations
+
 pub fn create_directory(path: &Path) -> Result<(), Error> {
     err! {
         std::fs::create_dir_all(path)
@@ -119,7 +154,7 @@ pub fn create_directory(path: &Path) -> Result<(), Error> {
 
 pub fn write_file(path: &Path, data: &[u8]) -> Result<(), Error> {
     err! {
-        std::fs::write(&path, data)
+        std::fs::write(path, data)
         => format!("Failed to write file: {}", path.display())
     }
 }
@@ -145,7 +180,10 @@ pub fn open_zip(path: &Path) -> Result<ZipArchive<File>, Error> {
     }
 }
 
-pub fn find_zip_entry<'a>(archive: &'a mut ZipArchive<File>, name: &str) -> Result<Option<ZipFile<'a, File>>, Error> {
+pub fn find_zip_entry<'a>(
+    archive: &'a mut ZipArchive<File>,
+    name: &str,
+) -> Result<Option<ZipFile<'a, File>>, Error> {
     let entry = archive.by_name(name);
     err! {
         match entry {
@@ -157,7 +195,10 @@ pub fn find_zip_entry<'a>(archive: &'a mut ZipArchive<File>, name: &str) -> Resu
     }
 }
 
-pub fn require_zip_entry<'a>(archive: &'a mut ZipArchive<File>, name: &str) -> Result<ZipFile<'a, File>, Error> {
+pub fn require_zip_entry<'a>(
+    archive: &'a mut ZipArchive<File>,
+    name: &str,
+) -> Result<ZipFile<'a, File>, Error> {
     match find_zip_entry(archive, name)? {
         Some(entry) => Ok(entry),
         None => generic!("Failed to find entry in zip: {name}"),
@@ -173,13 +214,12 @@ pub fn read_zip_entry(entry: &mut ZipFile<File>) -> Result<Vec<u8>, Error> {
     Ok(data)
 }
 
-
 pub fn read_zip_entry_text(entry: &mut ZipFile<File>) -> Result<String, Error> {
     let data = l!(read_zip_entry(entry))?;
-    return err! {
+    err! {
         String::from_utf8(data)
         => format!("Invalid UTF-8 in {}", entry.name())
-    };
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
