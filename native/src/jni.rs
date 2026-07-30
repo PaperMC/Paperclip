@@ -103,6 +103,9 @@ pub fn check_java_version(java_home: &str) -> Result<(), Error> {
         return Err(Error::Exit(1));
     }
     let major_version = major_version.unwrap();
+    if major_version > 25 {
+        return Ok(());
+    }
     if minor_version.is_none() || patch_version.is_none() {
         // We can't verify it's 25.0.4, but we tried
         return Ok(());
