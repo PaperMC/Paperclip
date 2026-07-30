@@ -136,8 +136,8 @@ your system resources, now you have two of them. So copying down JVM arguments i
 
 By implementing this tool in any natively compiled language (which we happened to choose Rust in this case) works around
 this issue. No JVM is started, and we can manage JVM arguments and other JVM settings directly without additional
-overhead. We also get the added benefit of being able to the JNI API to interact with the JVM directly from our native
-process, allowing us to inspect and control the AOT cache recording process.
+overhead. We also get the added benefit of being able to use the JNI API to interact with the JVM directly from our
+native code, allowing us to inspect and control the AOT cache recording process.
 </details>
 
 #### AOT: What benefits does it provide?
