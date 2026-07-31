@@ -54,20 +54,22 @@ jobs:
           curl -LO https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.appimage_arch }}.AppImage
           chmod +x linuxdeploy-${{ matrix.appimage_arch }}.AppImage
 
-          # Pre-create the AppDir and bundle the standard Mozilla CA certificates
-          mkdir -p AppDir/usr/share
+          # Pre-create the AppDir structure
+          mkdir -p AppDir/usr/share AppDir/usr/bin
+
+          # Bundle the standard Mozilla CA certificates
           curl -sL https://curl.se/ca/cacert.pem -o AppDir/usr/share/cacert.pem
 
-          # Create a wrapper script to export cert paths before executing the binary
-          cat > paperclip-wrapper << 'EOF'
+          # Create the wrapper script directly in the AppDir bin path
+          cat > AppDir/usr/bin/paperclip-wrapper << 'EOF'
           #!/bin/sh
           export CURL_CA_BUNDLE="$APPDIR/usr/share/cacert.pem"
           export SSL_CERT_FILE="$APPDIR/usr/share/cacert.pem"
           exec "$APPDIR/usr/bin/paperclip" "$@"
           EOF
-          chmod +x paperclip-wrapper
+          chmod +x AppDir/usr/bin/paperclip-wrapper
 
-          # Update Desktop file to point to the wrapper script instead of the raw binary
+          # Update Desktop file to point to the wrapper script
           cat > paperclip.desktop <<EOF
           [Desktop Entry]
           Name=paperclip
@@ -78,11 +80,10 @@ jobs:
           EOF
           echo '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50"/></svg>' > paperclip.svg
 
-          # Package both executables (wrapper and binary) along with dependencies
+          # Package the binary and dependencies (wrapper is already in place)
           ./linuxdeploy-${{ matrix.appimage_arch }}.AppImage \
             --appdir AppDir \
             --executable target/${{ matrix.target }}/release/paperclip \
-            --executable paperclip-wrapper \
             --desktop-file paperclip.desktop \
             --icon-file paperclip.svg \
             --output appimage
