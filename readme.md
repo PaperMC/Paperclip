@@ -15,7 +15,7 @@ generates the patch and config file and inserts it into the jar provided by this
 Rusty Paperclip
 ---------------
 
-The `native/` directory contains a Rust reimplementation of Paperlip. This native binary can be downloaded for all major
+The `native/` directory contains a Rust reimplementation of Paperclip. This native binary can be downloaded for all major
 platforms as a build artifact from the [releases page](https://github.com/PaperMC/Paperclip/releases).
 
 The Rusty Paperclip binary is not standalone, it requires a separate bundler Paperclip jar to run. The native binary is
