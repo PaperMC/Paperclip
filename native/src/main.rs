@@ -111,6 +111,18 @@ fn run() -> i32 {
     let jvm_thread = std::thread::spawn(move || {
         let _hold = JvmThreadDrop; // Run drop() on this whenever this thread finishes
 
+        {
+            let aot_logs_dir = Path::new(".paper").join("logs");
+            if aot_logs_dir.exists()
+                && let Err(e) = std::fs::remove_dir_all(&aot_logs_dir)
+            {
+                eprintln!("Failed to delete existing AOT logs directory: {}", e);
+            }
+            if let Err(e) = std::fs::create_dir_all(&aot_logs_dir) {
+                eprintln!("Failed to create AOT logs directory: {}", e);
+            }
+        }
+
         let jvm = match create_jvm(&jvm_args, &classpath, &aot_action) {
             Ok(jvm) => jvm,
             Err(Error::Exit(code)) => return code,
@@ -146,8 +158,8 @@ fn run() -> i32 {
         }
         drop(jvm);
 
-        if let Some(Err(e)) = meta_thread_res {
-            eprintln!("Error during AOT recording: {e}");
+        if let Some(Err(ref e)) = meta_thread_res {
+            eprintln!("Error during AOT recording: {e}")
         }
 
         match server_thread_res {
@@ -238,19 +250,20 @@ fn init_jvm(
     match aot_action {
         AotCacheAction::Use { aot_cache_file } | AotCacheAction::Record { aot_cache_file } => {
             match aot_cache_file.to_str() {
-                Some(p) => match aot_action {
-                    AotCacheAction::Use { .. } => {
-                        init_args = init_args
-                            .option(format!("-XX:AOTCache={p}"))
-                            .option("-Xlog:aot*=error")
+                Some(p) => {
+                    init_args = init_args
+                        .option("-Xlog:aot*=off")
+                        .option("-Xlog:aot*=info:file=.paper/logs/aot-logs.log");
+                    match aot_action {
+                        AotCacheAction::Use { .. } => {
+                            init_args = init_args.option(format!("-XX:AOTCache={p}"))
+                        }
+                        AotCacheAction::Record { .. } => {
+                            init_args = init_args.option(format!("-XX:AOTCacheOutput={p}"))
+                        }
+                        AotCacheAction::None => unreachable!(),
                     }
-                    AotCacheAction::Record { .. } => {
-                        init_args = init_args
-                            .option(format!("-XX:AOTCacheOutput={p}",))
-                            .option("-Xlog:aot*=error")
-                    }
-                    AotCacheAction::None => unreachable!(),
-                },
+                }
                 None => {
                     return generic!(
                         "Failed to convert AOT cache file path to string: {}",

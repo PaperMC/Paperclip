@@ -8,6 +8,7 @@ use jni::{AttachConfig, Env, JValue, JavaVM, ScopeToken, jni_sig, jni_str};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::OsString;
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -264,7 +265,7 @@ pub fn setup_auto_recording(
     let jvm_args = copy_owned(jvm_args);
     let app_args = copy_owned(app_args);
 
-    let meta_thread_handle = std::thread::spawn(move || {
+    let meta_thread_handle = std::thread::spawn(move || -> Result<(), Error> {
         let watchdog_thread = jni_str!("org/spigotmc/WatchdogThread");
         let has_started_field = jni_str!("hasStarted");
         let has_started_sig = jni_sig!("Z");
@@ -392,6 +393,7 @@ pub fn setup_auto_recording(
                     .loc(l!())?;
                     Ok(())
                 });
+                return Ok(());
             }
             _ => {}
         }
@@ -459,11 +461,18 @@ fn end_aot_recording(jvm: &JavaVM) -> Result<bool, Error> {
         .z()
         .loc(l!())?;
 
+    // Check if there were errors writing the AOT file
+    let is_ok = check_logs_for_errors().unwrap_or_else(|e| {
+        eprintln!("Failed to check AOT logs for errors: {e}");
+        // We can't verify there was an error, so we'll assume it's okay.
+        true
+    });
+
     if let Ok(logger) = logger {
         // Ignore errors here, it's just logging.
         let _ = try {
-            if ended {
-                let message = l!(env.new_string("AOT cache file written successfully."))?;
+            if ended && is_ok {
+                let message = env.new_string("AOT cache file written successfully.")?;
                 env.call_method(
                     &logger,
                     jni_str!("info"),
@@ -471,18 +480,72 @@ fn end_aot_recording(jvm: &JavaVM) -> Result<bool, Error> {
                     &[JValue::Object(&message)],
                 )
             } else {
-                let message = l!(env.new_string("AOT cache file writing failed."))?;
+                let message = "AOT cache file writing failed. Check AOT logs in .paper/logs for more information.";
+                let star = "*";
+                let bar = star.repeat(message.len());
+                let bar = env.new_string(bar)?;
+                let message = env.new_string(message)?;
+                env.call_method(
+                    &logger,
+                    jni_str!("error"),
+                    jni_sig!("(Ljava/lang/String;)V"),
+                    &[JValue::Object(&bar)],
+                )?;
                 env.call_method(
                     &logger,
                     jni_str!("error"),
                     jni_sig!("(Ljava/lang/String;)V"),
                     &[JValue::Object(&message)],
+                )?;
+                env.call_method(
+                    &logger,
+                    jni_str!("error"),
+                    jni_sig!("(Ljava/lang/String;)V"),
+                    &[JValue::Object(&bar)],
                 )
             }
         };
     }
 
-    Ok(ended)
+    Ok(ended && is_ok)
+}
+
+fn check_logs_for_errors() -> Result<bool, Error> {
+    let log_dir = Path::new(".paper").join("logs");
+    if !log_dir.exists() {
+        return generic!("No AOT logs directory found");
+    }
+
+    err! {
+        try {
+            for entry in std::fs::read_dir(&log_dir)? {
+                let path = entry?.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let file_name = path.file_name();
+                if file_name.is_none() {
+                    continue;
+                }
+                let file_name = file_name.unwrap();
+                if !file_name.to_string_lossy().ends_with(".log") {
+                    continue;
+                }
+
+                let file = std::fs::File::open(&path)?;
+                let reader = std::io::BufReader::new(file);
+                for line in reader.lines() {
+                    let line = line?;
+                    if line.contains("[error  ]") {
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+        => "Failed to check AOT logs for errors"
+    }?;
+
+    Ok(true)
 }
 
 fn get_logger<'a>(env: &mut Env<'a>) -> Result<JObject<'a>, Error> {
