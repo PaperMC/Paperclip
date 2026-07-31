@@ -49,26 +49,40 @@ jobs:
 
       - name: Build AppImage
         env:
-          # Bypasses FUSE requirement for running AppImages inside a Docker container
           APPIMAGE_EXTRACT_AND_RUN: 1
         run: |
           curl -LO https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.appimage_arch }}.AppImage
           chmod +x linuxdeploy-${{ matrix.appimage_arch }}.AppImage
 
+          # Pre-create the AppDir and bundle the standard Mozilla CA certificates
+          mkdir -p AppDir/usr/share
+          curl -sL https://curl.se/ca/cacert.pem -o AppDir/usr/share/cacert.pem
+
+          # Create a wrapper script to export cert paths before executing the binary
+          cat > paperclip-wrapper << 'EOF'
+          #!/bin/sh
+          export CURL_CA_BUNDLE="$APPDIR/usr/share/cacert.pem"
+          export SSL_CERT_FILE="$APPDIR/usr/share/cacert.pem"
+          exec "$APPDIR/usr/bin/paperclip" "$@"
+          EOF
+          chmod +x paperclip-wrapper
+
+          # Update Desktop file to point to the wrapper script instead of the raw binary
           cat > paperclip.desktop <<EOF
           [Desktop Entry]
           Name=paperclip
-          Exec=paperclip
+          Exec=paperclip-wrapper
           Icon=paperclip
           Type=Application
           Categories=Utility;
           EOF
           echo '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50"/></svg>' > paperclip.svg
 
-          # Package the binary and copy shared libraries into the AppDir
+          # Package both executables (wrapper and binary) along with dependencies
           ./linuxdeploy-${{ matrix.appimage_arch }}.AppImage \
             --appdir AppDir \
             --executable target/${{ matrix.target }}/release/paperclip \
+            --executable paperclip-wrapper \
             --desktop-file paperclip.desktop \
             --icon-file paperclip.svg \
             --output appimage
