@@ -54,22 +54,7 @@ jobs:
           curl -LO https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.appimage_arch }}.AppImage
           chmod +x linuxdeploy-${{ matrix.appimage_arch }}.AppImage
 
-          # Pre-create the share directory and bundle CA certificates
-          mkdir -p AppDir/usr/share
-          curl -sL https://curl.se/ca/cacert.pem -o AppDir/usr/share/cacert.pem
-
-          # Create the custom AppRun script
-          cat > custom-AppRun << 'EOF'
-          #!/bin/sh
-          HERE="$(dirname "$(readlink -f "${0}")")"
-          export APPDIR="${APPDIR:-$HERE}"
-          export CURL_CA_BUNDLE="$APPDIR/usr/share/cacert.pem"
-          export SSL_CERT_FILE="$APPDIR/usr/share/cacert.pem"
-          exec "$APPDIR/usr/bin/paperclip" "$@"
-          EOF
-          chmod +x custom-AppRun
-
-          # Create standard Desktop file (Exec points to the actual binary)
+          # Create mandatory AppImage metadata (Replace these inline files with committed assets in your repository)
           cat > paperclip.desktop <<EOF
           [Desktop Entry]
           Name=paperclip
@@ -80,13 +65,12 @@ jobs:
           EOF
           echo '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50"/></svg>' > paperclip.svg
 
-          # Package the AppImage using the custom AppRun
+          # Package the binary and copy shared libraries into the AppDir
           ./linuxdeploy-${{ matrix.appimage_arch }}.AppImage \
             --appdir AppDir \
             --executable target/${{ matrix.target }}/release/paperclip \
             --desktop-file paperclip.desktop \
             --icon-file paperclip.svg \
-            --custom-apprun custom-AppRun \
             --output appimage
 
       - name: Upload binary artifact
@@ -98,7 +82,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: paperclip-appimage-${{ matrix.target }}
-          path: native/*.AppImage
+          path: native/paperclip-${{ matrix.appimage_arch }}.AppImage
 
   build-native:
     name: Build ${{ matrix.target }}
