@@ -11,7 +11,46 @@ jobs:
       - name: Generate build date
         id: get_date
         run: echo "date=$(date +%s)" >> "$GITHUB_OUTPUT"
-  build:
+
+  build-linux:
+    name: Build ${{ matrix.target }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    container: almalinux:8
+    defaults:
+      run:
+        working-directory: ./native
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux (x86_64)
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          # Linux (aarch64)
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    env:
+      CI_BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        run: dnf install -y gcc gcc-c++ make openssl-devel libcurl-devel pkgconf-pkg-config
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          targets: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: paperclip-${{ matrix.target }}
+          path: native/target/${{ matrix.target }}/release/paperclip
+
+  build-native:
     name: Build ${{ matrix.target }}
     needs: prepare
     runs-on: ${{ matrix.os }}
@@ -22,14 +61,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux (x86_64)
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            extension: ""
-          # Linux (aarch64)
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            extension: ""
           # macOS (x86_64)
           - os: macos-latest
             target: x86_64-apple-darwin
@@ -51,55 +82,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
-      - name: Install dependencies
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-unknown-linux-gnu'
-        run: sudo apt-get install -y libcurl4-openssl-dev libssl-dev
-
-      - name: Install arm64 dependencies
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo sed -i 's/^Types: deb/Types: deb\nArchitectures: amd64/' /etc/apt/sources.list.d/ubuntu.sources
-
-          UBUNTU_CODENAME=$(lsb_release -cs)
-          sudo cat <<EOF | sudo tee /etc/apt/sources.list.d/ubuntu-ports.sources
-          Types: deb
-          Architectures: arm64
-          URIs: http://ports.ubuntu.com/ubuntu-ports/
-          Suites: $UBUNTU_CODENAME $UBUNTU_CODENAME-updates $UBUNTU_CODENAME-backports $UBUNTU_CODENAME-security
-          Components: main restricted universe multiverse
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-          EOF
-
-          sudo dpkg --add-architecture arm64
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libcurl4-openssl-dev:arm64 libssl-dev:arm64 gcc-aarch64-linux-gnu
-
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
-      - name: Add Rust target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Build (Linux x86_64)
+          targets: ${{ matrix.target }}
+      - name: Build
         run: cargo build --release --target ${{ matrix.target }}
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-unknown-linux-gnu'
-
-      - name: Build (Linux aarch64)
-        run: cargo build --release --target ${{ matrix.target }}
-        if: matrix.os == 'ubuntu-latest' && matrix.target == 'aarch64-unknown-linux-gnu'
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-          PKG_CONFIG_ALLOW_CROSS: 1
-          PKG_CONFIG_LIBDIR: /usr/lib/aarch64-linux-gnu/pkgconfig
-          PKG_CONFIG_SYSROOT_DIR: /
-
-      - name: Build (macOS & Windows)
-        run: cargo build --release --target ${{ matrix.target }}
-        if: matrix.os == 'macos-latest' || matrix.os == 'windows-latest'
-
       - name: Upload binary artifact
         uses: actions/upload-artifact@v7
         with:
