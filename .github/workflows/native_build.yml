@@ -27,16 +27,18 @@ jobs:
           # Linux (x86_64)
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            appimage_arch: x86_64
           # Linux (aarch64)
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
+            appimage_arch: aarch64
     env:
       CI_BUILD_DATE: ${{ needs.prepare.outputs.build_date }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
       - name: Install dependencies
-        run: dnf install -y gcc gcc-c++ make openssl-devel libcurl-devel pkgconf-pkg-config git
+        run: dnf install -y gcc gcc-c++ make openssl-devel libcurl-devel pkgconf-pkg-config git file
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -44,11 +46,43 @@ jobs:
           targets: ${{ matrix.target }}
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build AppImage
+        env:
+          # Bypasses FUSE requirement for running AppImages inside a Docker container
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: |
+          curl -LO https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.appimage_arch }}.AppImage
+          chmod +x linuxdeploy-${{ matrix.appimage_arch }}.AppImage
+
+          cat > paperclip.desktop <<EOF
+          [Desktop Entry]
+          Name=paperclip
+          Exec=paperclip
+          Icon=paperclip
+          Type=Application
+          Categories=Utility;
+          EOF
+          echo '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50"/></svg>' > paperclip.svg
+
+          # Package the binary and copy shared libraries into the AppDir
+          ./linuxdeploy-${{ matrix.appimage_arch }}.AppImage \
+            --appdir AppDir \
+            --executable target/${{ matrix.target }}/release/paperclip \
+            --desktop-file paperclip.desktop \
+            --icon-file paperclip.svg \
+            --output appimage
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v7
         with:
           name: paperclip-${{ matrix.target }}
           path: native/target/${{ matrix.target }}/release/paperclip
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: paperclip-appimage-${{ matrix.target }}
+          path: native/*.AppImage
 
   build-native:
     name: Build ${{ matrix.target }}
