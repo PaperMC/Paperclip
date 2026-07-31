@@ -464,7 +464,7 @@ fn print_help(first_arg: String) -> Result<Option<ArgOptions>, Error> {
               as others like -D<prop> for setting system properties.
 
             Application Arguments:
-              Any argument tha follows the jar file given to the '-jar' argument is
+              Any argument that follows the jar file given to the '-jar' argument is
               passed directly into the server.
         "},
         first_arg, ONLY_USE_AOT_FAILED_EXIT_CODE,
@@ -636,7 +636,10 @@ mod tests {
     fn test_split_args_with_at_file() {
         let content = "-Xmx4g\n-Dfoo=bar\n-jar\npaper.jar\n--port\n25565";
         let (path, _cleanup) = create_temp_arg_file("split_at", content);
-        let args = vec!["paperclip".to_string(), format!("@{}", path.to_str().unwrap())];
+        let args = vec![
+            "paperclip".to_string(),
+            format!("@{}", path.to_str().unwrap()),
+        ];
         let res = split_args(args).unwrap().unwrap();
         assert_eq!(res.jar, "paper.jar");
         assert_eq!(res.jvm_args, vec!["-Xmx4g", "-Dfoo=bar"]);
@@ -664,7 +667,6 @@ mod tests {
         assert_eq!(res.jvm_args, vec!["-Xmx1g".to_string(), arg2_str]);
     }
 
-
     #[test]
     fn test_split_args_no_jar_error() {
         let args = vec!["paperclip".to_string(), "-Xmx1g".to_string()];
@@ -683,4 +685,3 @@ mod tests {
         assert!(split_args(args).is_err());
     }
 }
-
