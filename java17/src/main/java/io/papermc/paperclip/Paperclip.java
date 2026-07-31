@@ -1,19 +1,22 @@
 package io.papermc.paperclip;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -80,11 +83,13 @@ public final class Paperclip {
         // This is due to change we make to some library classes inside the versions jar
         final Collection<URL> versionUrls = classpathUrls.get("versions").values();
         final Collection<URL> libraryUrls = classpathUrls.get("libraries").values();
+        final Collection<URL> extraUrls = findExtraClasspathUrls();
 
         final URL[] emptyArray = new URL[0];
-        final URL[] urls = new URL[versionUrls.size() + libraryUrls.size()];
+        final URL[] urls = new URL[versionUrls.size() + libraryUrls.size() + extraUrls.size()];
         System.arraycopy(versionUrls.toArray(emptyArray), 0, urls, 0, versionUrls.size());
         System.arraycopy(libraryUrls.toArray(emptyArray), 0, urls, versionUrls.size(), libraryUrls.size());
+        System.arraycopy(extraUrls.toArray(emptyArray), 0, urls, versionUrls.size() + libraryUrls.size(), extraUrls.size());
         return urls;
     }
 
@@ -240,5 +245,23 @@ public final class Paperclip {
         } catch (final IOException e) {
             throw Util.fail("Failed to apply patches", e);
         }
+    }
+
+    private static Collection<URL> findExtraClasspathUrls() {
+        String extraClasspathUrlsString = System.getProperty("paperclip.extraClasspathUrls");
+        if (extraClasspathUrlsString == null) {
+            return Collections.emptyList();
+        }
+        String[] extraClasspathStrings = extraClasspathUrlsString.split(File.pathSeparator);
+        Collection<URL> extraClasspathUrls = new ArrayList<>();
+        try {
+            for (String extraClasspathString : extraClasspathStrings) {
+                File extraClasspathFile = new File(extraClasspathString);
+                extraClasspathUrls.add(extraClasspathFile.toURI().toURL());
+            }
+        } catch (MalformedURLException e) {
+            throw Util.fail("Failed to parse extra classpath URLs", e);
+        }
+        return extraClasspathUrls;
     }
 }
