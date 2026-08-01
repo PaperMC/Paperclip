@@ -482,6 +482,17 @@ impl DownloadContext {
             return Ok(target_file);
         }
 
+        let old_target_file = repo_dir.join("cache").join(&self.file_name);
+        if old_target_file.exists() && file_matches_hash(&old_target_file, &self.hash).is_ok() {
+            // The file is cached in the old path, we can re-use it.
+            // But if something goes bad, just skip it and move on to the download path
+            if std::fs::copy(&old_target_file, &target_file).is_ok()
+                && file_matches_hash(&target_file, &self.hash).unwrap_or(false)
+            {
+                return Ok(target_file);
+            }
+        }
+
         println!("Downloading {}", self.file_name);
 
         let mut output_file = create_file(&target_file).loc(l!())?;
