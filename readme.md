@@ -18,3 +18,5 @@ Building
 Building Paperclip creates a runnable jar, but the jar will not contain the Paperclip config file or patch data. This
 project consists simply of the launcher itself, the [paperweight Gradle plugin](https://github.com/PaperMC/paperweight)
 generates the patch and config file and inserts it into the jar provided by this project, creating a working runnable jar.
+
+<img src="https://papermc.io/assets/misc/namespace-oss-badge.svg?project=paperclip" alt="CI powered by namespace badge" />
