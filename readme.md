@@ -19,4 +19,4 @@ Building Paperclip creates a runnable jar, but the jar will not contain the Pape
 project consists simply of the launcher itself, the [paperweight Gradle plugin](https://github.com/PaperMC/paperweight)
 generates the patch and config file and inserts it into the jar provided by this project, creating a working runnable jar.
 
-<img src="https://papermc.io/assets/misc/namespace-oss-badge.svg?project=paperclip" alt="CI powered by namespace badge" />
+[![CI powered by namespace badge](https://papermc.io/assets/misc/namespace-oss-badge.svg?project=paperclip)](https://namespace.so/github-actions/?utm_source=oss&utm_campaign=papermc)
